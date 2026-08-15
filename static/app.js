@@ -434,10 +434,27 @@ async function handleSearch(e) {
       body: JSON.stringify({ niche, region, count, source })
     });
     const data = await res.json();
-    showToast(data.message, "fa-robot");
-    startPollingAgent();
+    
+    if (!res.ok) {
+      showToast(data.detail || data.message || "Failed to start agent", "fa-triangle-exclamation");
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-play"></i> Launch Agent`;
+      return;
+    }
+    
+    if (data.status === "Completed" && data.leads) {
+      allLeads = data.leads;
+      renderLeads(allLeads);
+      updateStats(allLeads);
+      showToast(data.message || `Discovered ${allLeads.length} leads!`, "fa-check");
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-play"></i> Launch Agent`;
+    } else {
+      showToast(data.message || "Agent searching in background...", "fa-robot");
+      startPollingAgent();
+    }
   } catch (err) {
-    showToast("Failed to start agent", "fa-triangle-exclamation");
+    showToast("Failed to communicate with agent", "fa-triangle-exclamation");
     btn.disabled = false;
     btn.innerHTML = `<i class="fa-solid fa-play"></i> Launch Agent`;
   }
