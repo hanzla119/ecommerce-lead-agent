@@ -1,4 +1,5 @@
 import os
+import re
 import csv
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
