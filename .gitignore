@@ -1,0 +1,32 @@
+# Environment Variables (Secrets & Passwords)
+.env
+.env.*
+!.env.example
+
+# Python Virtual Environments & Bytecode
+.venv/
+env/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Local logs & process files
+*.log
+output/*.log
+.cloudflared/
+
+# IDE & OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.agents/
+.gemini/
+
+# Output lead spreadsheets (optional: exclude if you don't want client leads on public GitHub)
+output/*.csv
+output/*.xlsx
+!output/.gitkeep
