@@ -22,15 +22,18 @@ from exporter.excel_exporter import export_leads_to_files
 
 app = FastAPI(title="AI E-Commerce Lead Gen & Outreach Dashboard")
 
-# Static directory
+# Mount static files safely if directory exists
 STATIC_DIR = BASE_DIR / "dashboard" / "static"
-try:
-    STATIC_DIR.mkdir(parents=True, exist_ok=True)
-except Exception:
-    pass
-
-# Mount static files
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+if STATIC_DIR.exists():
+    try:
+        app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    except Exception:
+        pass
+elif (BASE_DIR / "public" / "static").exists():
+    try:
+        app.mount("/static", StaticFiles(directory=str(BASE_DIR / "public" / "static")), name="static")
+    except Exception:
+        pass
 
 # Thread lock for thread-safe status updates
 status_lock = threading.Lock()
