@@ -276,37 +276,42 @@ class AuditSingleRequest(BaseModel):
 @router.post("/audit-single")
 def audit_single(req: AuditSingleRequest):
     url = req.url.strip()
+    # Strip any trailing punctuation (commas, periods, quotes, semicolons)
+    url = re.sub(r"[,;.'\"\s]+$", "", url).strip()
     if not url.startswith("http"):
         url = "https://" + url
         
-    audit = audit_store_frontend(url)
-    contacts = enrich_store_contacts(url, region=req.region)
-    primary_email = contacts.get("email", "")
-    if primary_email:
-        verify_res = verify_email_deliverability(primary_email)
-        contacts["email_deliverability"] = verify_res.get("status", "Unknown")
-        contacts["is_deliverable"] = verify_res.get("mx_found", False)
+    try:
+        audit = audit_store_frontend(url)
+        contacts = enrich_store_contacts(url, region=req.region)
+        primary_email = contacts.get("email", "")
+        if primary_email:
+            verify_res = verify_email_deliverability(primary_email)
+            contacts["email_deliverability"] = verify_res.get("status", "Unknown")
+            contacts["is_deliverable"] = verify_res.get("mx_found", False)
+            
+        brand = contacts.get("brand_name", "") or url
+        pitches = generate_personalized_pitches(
+            brand_name=brand,
+            store_url=url,
+            region=req.region,
+            contact_data=contacts,
+            audit_data=audit
+        )
         
-    brand = contacts.get("brand_name", "") or url
-    pitches = generate_personalized_pitches(
-        brand_name=brand,
-        store_url=url,
-        region=req.region,
-        contact_data=contacts,
-        audit_data=audit
-    )
-    
-    lead_data = {
-        "url": url,
-        "region": req.region,
-        "contacts": contacts,
-        "audit": audit,
-        "pitches": pitches
-    }
-    
-    # Save to file
-    res = export_leads_to_files([lead_data], filename_prefix="single_audit")
-    return {"lead": lead_data, "export": res}
+        lead_data = {
+            "url": url,
+            "region": req.region,
+            "contacts": contacts,
+            "audit": audit,
+            "pitches": pitches
+        }
+        
+        # Save to file safely
+        res = export_leads_to_files([lead_data], filename_prefix="single_audit")
+        return {"lead": lead_data, "export": res}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to audit store: {e}")
 
 class UpdateStatusRequest(BaseModel):
     store_url: str

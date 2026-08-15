@@ -476,15 +476,47 @@ async function handleSingleAudit(e) {
       body: JSON.stringify({ url: url, region: "UK" })
     });
     const data = await res.json();
+    
+    if (!res.ok) {
+      showToast(data.detail || "Error auditing store", "fa-triangle-exclamation");
+      return;
+    }
+    
     showToast(`Audited ${data.lead.contacts.brand_name || url}!`, "fa-bolt");
     document.getElementById("single-url").value = "";
-    fetchLeads();
-  } catch (err) {
-    showToast("Error auditing store", "fa-triangle-exclamation");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<i class="fa-solid fa-bolt"></i> Audit`;
-  }
+    
+    if (data.lead) {
+      const flattened = {
+        "Brand Name": data.lead.contacts.brand_name || data.lead.url,
+        "Store URL": data.lead.url,
+        "Target Region": data.lead.region || "UK",
+        "Contact Email": data.lead.contacts.email || "",
+        "Email Deliverability": data.lead.contacts.email_deliverability || "MX Checked",
+        "Founder / Owner": data.lead.contacts.founder_name || "",
+        "Founder Title": data.lead.contacts.founder_title || "",
+        "Founder LinkedIn Profile": data.lead.contacts.founder_linkedin || "",
+        "Instagram Handle": data.lead.contacts.instagram_handle || "",
+        "Instagram Profile": data.lead.contacts.instagram || "",
+        "TikTok Profile": data.lead.contacts.tiktok || "",
+        "Store Platform": data.lead.audit.platform || "Shopify",
+        "Meta Pixel Active": data.lead.audit.has_meta_pixel ? "Yes" : "NO (Missing)",
+        "TikTok Pixel Active": data.lead.audit.has_tiktok_pixel ? "Yes" : "NO (Missing)",
+        "Google Analytics / GTM": data.lead.audit.has_google_analytics ? "Yes" : "NO (Missing)",
+        "Klaviyo / Email Active": data.lead.audit.has_klaviyo ? "Yes" : "No",
+        "Response Speed (TTFB)": `${data.lead.audit.response_time_ms || 0} ms`,
+        "Key Gaps Identified": (data.lead.audit.critical_gaps || []).join("; "),
+        "Email Subject (Template 1)": data.lead.pitches.email_subject || "",
+        "Email Pitch Body (Template 1)": data.lead.pitches.email_body || "",
+        "Email Subject (Template 2)": data.lead.pitches.email_subject_alt || "",
+        "Email Pitch Body (Template 2)": data.lead.pitches.email_body_alt || "",
+        "LinkedIn Connection Note": data.lead.pitches.linkedin_note || "",
+        "Instagram DM Pitch": data.lead.pitches.instagram_dm || "",
+        "Outreach Status": "Ready to Send"
+      };
+      allLeads = [flattened, ...allLeads.filter(l => l["Store URL"] !== flattened["Store URL"])];
+      renderLeads(allLeads);
+      updateStats(allLeads);
+    }
 }
 
 // Check agent status

@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime
 from typing import List, Dict
 import pandas as pd
@@ -6,7 +7,7 @@ from config import OUTPUT_DIR
 
 def export_leads_to_files(leads: List[Dict], filename_prefix: str = "ecommerce_leads") -> Dict[str, str]:
     """
-    Exports lead data to formatted CSV and Excel (.xlsx) files.
+    Exports lead data to formatted CSV and Excel (.xlsx) files safely.
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     csv_path = OUTPUT_DIR / f"{filename_prefix}_{timestamp}.csv"
@@ -63,30 +64,39 @@ def export_leads_to_files(leads: List[Dict], filename_prefix: str = "ecommerce_l
         
     df = pd.DataFrame(flattened_data)
     
-    # Save timestamped CSV
-    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-    
-    # Save timestamped Excel
-    with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Leads")
+    try:
+        # Save timestamped CSV
+        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
         
-    # Overwrite / Append to leads_latest
-    if latest_csv.exists():
+        # Save timestamped Excel
         try:
-            existing_df = pd.read_csv(latest_csv, encoding="utf-8-sig")
-            # Drop duplicates by Store URL
-            combined_df = pd.concat([df, existing_df]).drop_duplicates(subset=["Store URL"], keep="first")
-            combined_df.to_csv(latest_csv, index=False, encoding="utf-8-sig")
-            with pd.ExcelWriter(latest_excel, engine="openpyxl") as writer:
-                combined_df.to_excel(writer, index=False, sheet_name="All Leads")
+            with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+                df.to_excel(writer, index=False, sheet_name="Leads")
         except Exception:
+            pass
+            
+        # Overwrite / Append to leads_latest
+        if latest_csv.exists():
+            try:
+                existing_df = pd.read_csv(latest_csv, encoding="utf-8-sig")
+                combined_df = pd.concat([df, existing_df]).drop_duplicates(subset=["Store URL"], keep="first")
+                combined_df.to_csv(latest_csv, index=False, encoding="utf-8-sig")
+                try:
+                    with pd.ExcelWriter(latest_excel, engine="openpyxl") as writer:
+                        combined_df.to_excel(writer, index=False, sheet_name="All Leads")
+                except Exception:
+                    pass
+            except Exception:
+                df.to_csv(latest_csv, index=False, encoding="utf-8-sig")
+        else:
             df.to_csv(latest_csv, index=False, encoding="utf-8-sig")
-            with pd.ExcelWriter(latest_excel, engine="openpyxl") as writer:
-                df.to_excel(writer, index=False, sheet_name="All Leads")
-    else:
-        df.to_csv(latest_csv, index=False, encoding="utf-8-sig")
-        with pd.ExcelWriter(latest_excel, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="All Leads")
+            try:
+                with pd.ExcelWriter(latest_excel, engine="openpyxl") as writer:
+                    df.to_excel(writer, index=False, sheet_name="All Leads")
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"Non-critical export error (ignoring for serverless): {e}")
             
     return {
         "csv": str(csv_path),
