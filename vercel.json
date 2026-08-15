@@ -1,7 +1,14 @@
 {
   "functions": {
-    "api/*.py": {
-      "includeFiles": "config.py,agent/**,auditor/**,dashboard/**,exporter/**,scraper/**"
+    "api/index.py": {
+      "includeFiles": [
+        "config.py",
+        "agent/**",
+        "auditor/**",
+        "dashboard/**",
+        "exporter/**",
+        "scraper/**"
+      ]
     }
   },
   "rewrites": [
