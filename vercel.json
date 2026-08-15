@@ -1,5 +1,9 @@
 {
-  "version": 2,
+  "functions": {
+    "api/*.py": {
+      "includeFiles": "config.py,agent/**,auditor/**,dashboard/**,exporter/**,scraper/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",

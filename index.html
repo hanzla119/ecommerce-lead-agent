@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI E-Commerce Lead Gen & Outreach System | Talha Yousaf</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand-wrapper">
+        <div class="logo-badge">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+        <div class="brand-title">
+          <h1>E-Commerce Lead & Outreach Agent</h1>
+          <p>Autonomous AI Client Acquisition for UK, US, Australia & Europe</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary" onclick="openEmailSettingsModal()">
+          <i class="fa-solid fa-envelope-circle-check" style="color: var(--cyan);"></i> Email Setup (Gmail)
+        </button>
+        <button class="btn btn-secondary" onclick="fetchLeads()">
+          <i class="fa-solid fa-rotate"></i> Refresh
+        </button>
+        <a href="/api/download/excel" class="btn btn-outline-emerald">
+          <i class="fa-solid fa-file-excel"></i> Export Excel (.xlsx)
+        </a>
+      </div>
+    </header>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Leads Discovered</div>
+        <div class="stat-value" id="stat-total">0</div>
+        <div class="stat-hint">Global Stores Analyzed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Emails Extracted</div>
+        <div class="stat-value" id="stat-emails" style="color: var(--cyan);">0</div>
+        <div class="stat-hint">Direct Business & Contact Emails</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Founder LinkedIn Profiles</div>
+        <div class="stat-value" id="stat-linkedin" style="color: var(--primary);">0</div>
+        <div class="stat-hint">Decision Makers (Founders / CEOs)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Missing Ad Pixels / High Opp</div>
+        <div class="stat-value" id="stat-missing" style="color: var(--rose);">0</div>
+        <div class="stat-hint">Stores leaking ROAS / Prime Targets</div>
+      </div>
+    </div>
+
+    <!-- Control Center -->
+    <div class="control-panel">
+      <!-- Batch Lead Discovery Agent -->
+      <div class="panel-card">
+        <h2><i class="fa-solid fa-robot" style="color: var(--primary);"></i> Run AI Lead Discovery Agent</h2>
+        <form id="search-form" class="form-grid" onsubmit="handleSearch(event)">
+          <div class="form-group">
+            <label>Niche / Product Category</label>
+            <input type="text" id="input-niche" class="form-control" placeholder="e.g. streetwear fashion, jewelry, supplements" required value="streetwear sneakers">
+          </div>
+          <div class="form-group">
+            <label>Source Channel</label>
+            <select id="input-source" class="form-control">
+              <option value="web" selected>🌐 Shopify / Web</option>
+              <option value="instagram">📷 Instagram D2C</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Target Region</label>
+            <select id="input-region" class="form-control">
+              <option value="UK" selected>UK (United Kingdom)</option>
+              <option value="US">US (United States)</option>
+              <option value="Australia">Australia</option>
+              <option value="Europe">Europe</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Leads Count</label>
+            <input type="number" id="input-count" class="form-control" value="10" min="1" max="200">
+          </div>
+          <button type="submit" id="btn-run-agent" class="btn btn-primary">
+            <i class="fa-solid fa-play"></i> Launch Agent
+          </button>
+        </form>
+
+        <!-- Live Agent Progress Box -->
+        <div id="progress-box" class="agent-progress-box">
+          <div class="progress-header">
+            <span id="progress-step"><i class="fa-solid fa-spinner fa-spin"></i> Agent running...</span>
+            <span id="progress-count">0/0</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="progress-fill" class="progress-bar-fill"></div>
+          </div>
+          <div id="terminal-logs" class="terminal-logs"></div>
+        </div>
+      </div>
+
+      <!-- Single Store Quick Audit -->
+      <div class="panel-card">
+        <h2><i class="fa-solid fa-magnifying-glass-chart" style="color: var(--cyan);"></i> Instant Single Store Audit</h2>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Paste any Shopify or WooCommerce URL to generate immediate CRO audit & pitches.</p>
+        <form id="single-form" onsubmit="handleSingleAudit(event)">
+          <div class="single-audit-form">
+            <input type="url" id="single-url" class="form-control" placeholder="https://store.co.uk" required>
+            <button type="submit" id="btn-single-audit" class="btn btn-secondary">
+              <i class="fa-solid fa-bolt"></i> Audit
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Leads Display Section -->
+    <div class="section-header">
+      <h2><i class="fa-solid fa-users" style="color: var(--emerald);"></i> Discovered Leads (<span id="leads-count-header">0</span>)</h2>
+      <div class="filters-bar">
+        <input type="text" id="search-filter" class="form-control search-input" placeholder="🔍 Search brand, founder, email..." oninput="filterLeads()">
+        <select id="region-filter" class="form-control" style="width: 140px;" onchange="filterLeads()">
+          <option value="ALL">All Regions</option>
+          <option value="UK">UK</option>
+          <option value="US">US</option>
+          <option value="Australia">Australia</option>
+          <option value="Europe">Europe</option>
+        </select>
+        <select id="status-filter" class="form-control" style="width: 150px;" onchange="filterLeads()">
+          <option value="ALL">All Statuses</option>
+          <option value="Ready to Send">Ready to Send</option>
+          <option value="Contacted">Contacted</option>
+          <option value="Meeting Booked">Meeting Booked</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Leads Grid Container -->
+    <div id="leads-grid" class="leads-grid">
+      <!-- Rendered dynamically by app.js -->
+    </div>
+  </div>
+
+  <!-- Email Settings Modal -->
+  <div id="email-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-gear" style="color: var(--cyan);"></i> Gmail Outreach Setup</h3>
+        <button class="btn-close" onclick="closeEmailSettingsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          Send personalized cold emails directly from your dashboard using your Gmail account.
+        </p>
+        
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label>Your Gmail Address</label>
+          <input type="email" id="modal-sender-email" class="form-control" value="marketingbytalha@gmail.com" placeholder="marketingbytalha@gmail.com">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label>Google App Password (16 Characters)</label>
+          <input type="password" id="modal-app-password" class="form-control" placeholder="xxxx xxxx xxxx xxxx">
+          <div style="font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.4;">
+            💡 <b>How to get it for free:</b> Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: var(--primary);">myaccount.google.com/apppasswords</a> ➔ Login ➔ Type "Outreach Agent" ➔ Click "Create" ➔ Copy the 16-letter password and paste it here.
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+          <button class="btn btn-secondary" onclick="closeEmailSettingsModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveEmailSettings()">
+            <i class="fa-solid fa-floppy-disk"></i> Save Credentials
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
