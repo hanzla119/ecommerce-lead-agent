@@ -377,11 +377,14 @@ def save_smtp_settings(req: SMTPSettingsRequest):
     os.environ["SENDER_EMAIL"] = req.sender_email.strip()
     os.environ["GMAIL_APP_PASSWORD"] = req.app_password.strip()
     
-    # Save to .env in workspace for persistence
-    env_file = BASE_DIR / ".env"
-    with open(env_file, "w") as f:
-        f.write(f"SENDER_EMAIL={req.sender_email.strip()}\n")
-        f.write(f"GMAIL_APP_PASSWORD={req.app_password.strip()}\n")
+    # Save to .env in workspace for persistence if writable
+    try:
+        env_file = BASE_DIR / ".env"
+        with open(env_file, "w") as f:
+            f.write(f"SENDER_EMAIL={req.sender_email.strip()}\n")
+            f.write(f"GMAIL_APP_PASSWORD={req.app_password.strip()}\n")
+    except Exception:
+        pass
         
     return {"status": "success", "message": "Email settings saved successfully!"}
 

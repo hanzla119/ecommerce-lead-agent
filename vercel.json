@@ -1,8 +1,19 @@
 {
+  "version": 2,
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": [
+          "dashboard/**",
+          "scraper/**",
+          "agent/**",
+          "auditor/**",
+          "exporter/**",
+          "config.py"
+        ]
+      }
     }
   ],
   "routes": [
