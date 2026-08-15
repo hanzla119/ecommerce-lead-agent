@@ -1,10 +1,20 @@
 import os
 from pathlib import Path
+import tempfile
 
 # Base directories
 BASE_DIR = Path(__file__).resolve().parent
-OUTPUT_DIR = BASE_DIR / "output"
-OUTPUT_DIR.mkdir(exist_ok=True)
+
+# Support serverless / read-only environments (Vercel, AWS Lambda)
+if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
+    OUTPUT_DIR = Path(tempfile.gettempdir()) / "output"
+else:
+    OUTPUT_DIR = BASE_DIR / "output"
+
+try:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
 
 # Load local .env if present
 env_file = BASE_DIR / ".env"
