@@ -182,11 +182,11 @@ def execute_lead_generation(niche: str, region: str, count: int, source: str = "
         total_discovered = len(raw_stores)
         with status_lock:
             agent_status["total"] = total_discovered
-            agent_status["current_step"] = f"Auditing {total_discovered} stores in parallel (8 threads)..."
-            agent_status["logs"].append(f"⚡ Discovered {total_discovered} stores. Starting multi-threaded technical audit & pitch generation...")
+            agent_status["current_step"] = f"Auditing {total_discovered} stores in parallel (20 threads)..."
+            agent_status["logs"].append(f"⚡ Discovered {total_discovered} stores. Starting ultra-fast multi-threaded audit (20 workers) & pitch generation...")
 
         new_leads = []
-        max_workers = min(8, max(1, total_discovered))
+        max_workers = min(20, max(1, total_discovered))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_store = {
                 executor.submit(process_single_store_worker, store, region): store 

@@ -38,14 +38,14 @@ GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 
 # Default Search Regions & Niches
 DEFAULT_REGIONS = [
-    "UK",
-    "US",
+    "America (US)",
+    "Europe (EU)",
+    "Australia",
+    "United Kingdom (UK)",
     "Pakistan",
     "Canada",
-    "Australia",
     "UAE",
-    "Germany",
-    "Europe"
+    "Germany"
 ]
 
 DEFAULT_NICHES = [

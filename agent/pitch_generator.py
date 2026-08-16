@@ -19,18 +19,25 @@ def build_fallback_pitches(brand_name: str, region: str, founder_name: str = "",
     gap_summary = gaps[0] if gaps else "product page social proof and mobile retargeting"
     
     # Regional Case Study Selection
-    if region.upper() == "UK":
+    reg_clean = region.upper()
+    if "UK" in reg_clean or "UNITED KINGDOM" in reg_clean:
         proof_line = "I recently scaled a UK athletic & lifestyle brand from £4.6k to £696,643.80 (+14,752% growth, £88k in a single month) at a 4.89% CVR and 3.8x ROAS."
         stat_hook = "scaled UK brand from £4.6k to £696k+"
-    elif region.upper() in ["US", "USA", "CANADA", "AUSTRALIA"]:
-        proof_line = "I recently scaled a US D2C store to $34k+ across 569 orders at a 4.89% conversion rate ($59 AOV) by plugging tracking leaks and dialing in paid search."
+    elif any(k in reg_clean for k in ["AMERICA", "US", "USA", "UNITED STATES"]):
+        proof_line = "I recently scaled a US D2C brand to $34,200+ (569 orders) at a 4.89% conversion rate ($59 AOV) by plugging tracking leaks and dialing in paid search."
         stat_hook = "scaled US store to 4.89% CVR"
-    elif region.upper() in ["PAKISTAN", "PK", "UAE"]:
-        proof_line = "I recently scaled an e-commerce apparel brand to PKR 11.2M+ (3,540+ orders) while maintaining a 93/100 Meta Ads optimization score across PKR 3.5M+ spend."
+    elif any(k in reg_clean for k in ["EUROPE", "EU", "GERMANY", "FRANCE", "NETHERLANDS"]):
+        proof_line = "I recently scaled a European e-commerce lifestyle brand from €5k to €800k+ (+14,752% growth, €100k in a single month) at a 4.89% CVR and 3.8x ROAS."
+        stat_hook = "scaled European store from €5k to €800k+"
+    elif any(k in reg_clean for k in ["AUSTRALIA", "AU", "NZ", "NEW ZEALAND"]):
+        proof_line = "I recently scaled an athletic & lifestyle store to $1.3M+ AUD (+14,752% growth, $170k AUD in a single month) at a 4.89% CVR by plugging ad and checkout leaks."
+        stat_hook = "scaled lifestyle store to $1.3M+ AUD"
+    elif any(k in reg_clean for k in ["PAKISTAN", "PK", "UAE", "DUBAI"]):
+        proof_line = "I recently scaled an apparel brand to PKR 11.2M+ (3,540+ orders) while maintaining a 93/100 Meta Ads optimization score across PKR 3.5M+ spend."
         stat_hook = "scaled apparel brand to 11.2M+ PKR"
     else:
-        proof_line = "I recently scaled an e-commerce brand from £4.6k to £696k+ (+14,752% growth) at a 4.89% CVR by fixing checkout tracking and ad leaks."
-        stat_hook = "scaled brand from £4.6k to £696k+"
+        proof_line = "I recently scaled an e-commerce store from £4.6k to £696k+ (+14,752% growth) at a 4.89% CVR by fixing checkout tracking and ad leaks."
+        stat_hook = "scaled store from £4.6k to £696k+"
 
     email_body_1 = f"""{salutation},
 
@@ -176,7 +183,7 @@ RULES:
 <Under 45 words casual, direct Instagram DM>
 """
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-1.5-flash",
             contents=prompt
         )
         
