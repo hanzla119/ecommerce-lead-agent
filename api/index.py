@@ -424,6 +424,9 @@ def get_smtp_settings():
 
 app.include_router(router, prefix="/api")
 app.include_router(router, prefix="")
+app.include_router(router, prefix="/api/index.py")
+app.include_router(router, prefix="/index.py")
+app.include_router(router, prefix="/api/index")
 
 # AWS Lambda / Vercel Serverless Handler
 handler = Mangum(app, lifespan="off")

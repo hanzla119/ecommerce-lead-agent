@@ -1,9 +1,37 @@
 {
   "version": 2,
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "src": "/static/(.*)",
+      "dest": "/public/static/$1"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/leads",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/stats",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/audit-single",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/run",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/send-email",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/$1"
     }
   ]
 }

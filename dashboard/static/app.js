@@ -70,6 +70,30 @@ function showToast(msg, iconClass = "fa-check-circle") {
   setTimeout(() => toast.classList.add("hidden"), 3500);
 }
 
+// Resilient API Fetch Helper with Auto Route Resolving
+async function apiFetch(endpoint, options = {}) {
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const candidates = [
+    `/api${cleanEndpoint}`,
+    cleanEndpoint,
+    `/api/index.py${cleanEndpoint}`
+  ];
+  
+  let lastRes = null;
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, options);
+      if (res.status !== 404) {
+        return res;
+      }
+      lastRes = res;
+    } catch (err) {
+      // Try next
+    }
+  }
+  return lastRes || new Response(JSON.stringify({ error: "Not Found" }), { status: 404 });
+}
+
 // 1. Initial Load
 document.addEventListener("DOMContentLoaded", () => {
   fetchLeads();
@@ -80,7 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // 2. Fetch Leads & Stats API
 async function fetchLeads() {
   try {
-    const res = await fetch("/api/leads");
+    const res = await apiFetch("/leads");
     const data = await res.json();
     allLeads = data.leads || [];
     renderLeads();
@@ -92,7 +116,7 @@ async function fetchLeads() {
 
 async function fetchStats() {
   try {
-    const res = await fetch("/api/stats");
+    const res = await apiFetch("/stats");
     const stats = await res.json();
     kpiTotal.textContent = stats.total_leads || 0;
     kpiEmails.textContent = stats.emails_found || 0;
@@ -118,7 +142,7 @@ function renderLeads() {
     const status = l["Outreach Status"] || "New Lead";
 
     const matchQuery = !query || brand.includes(query) || email.includes(query) || founder.includes(query);
-    const matchRegion = regFilter === "ALL" || region === regFilter;
+    const matchRegion = regFilter === "ALL" || region === regFilter || (regFilter.includes("America") && region.includes("US")) || (regFilter.includes("Europe") && region.includes("Europe"));
     const matchStatus = statusFilter === "ALL" || status === statusFilter;
 
     return matchQuery && matchRegion && matchStatus;
@@ -326,7 +350,7 @@ window.copyCurrentPitch = function(idx) {
 // 5. Update Lead Status API
 window.updateLeadStatus = async function(url, newStatus) {
   try {
-    const res = await fetch("/api/update-status", {
+    const res = await apiFetch("/update-status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ store_url: url, new_status: newStatus })
@@ -352,7 +376,7 @@ btnSingleAudit.addEventListener("click", async () => {
   btnSingleAudit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Auditing...`;
 
   try {
-    const res = await fetch("/api/audit-single", {
+    const res = await apiFetch("/audit-single", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, region })
@@ -389,7 +413,7 @@ btnLaunchAgent.addEventListener("click", async () => {
   btnLaunchAgent.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Launching...`;
 
   try {
-    const res = await fetch("/api/run", {
+    const res = await apiFetch("/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ niche, region, count, source })
@@ -430,7 +454,7 @@ function startPollingStatus() {
 
 async function checkAgentStatus() {
   try {
-    const res = await fetch("/api/status");
+    const res = await apiFetch("/status");
     const status = await res.json();
     if (!status) return;
 
@@ -491,7 +515,7 @@ btnConfirmSend.addEventListener("click", async () => {
   btnConfirmSend.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sending...`;
 
   try {
-    const res = await fetch("/api/send-email", {
+    const res = await apiFetch("/send-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to_email: to, subject, body, store_url: currentSendingStoreUrl })
@@ -519,7 +543,7 @@ btnConfirmSend.addEventListener("click", async () => {
 // 10. SMTP Settings Modal
 btnEmailSettings.addEventListener("click", async () => {
   try {
-    const res = await fetch("/api/get-smtp-settings");
+    const res = await apiFetch("/get-smtp-settings");
     const data = await res.json();
     if (data.sender_email) smtpSenderEmail.value = data.sender_email;
   } catch (e) {}
@@ -541,7 +565,7 @@ btnSaveSmtp.addEventListener("click", async () => {
   }
 
   try {
-    const res = await fetch("/api/save-smtp-settings", {
+    const res = await apiFetch("/save-smtp-settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sender_email: email, app_password: pwd })
