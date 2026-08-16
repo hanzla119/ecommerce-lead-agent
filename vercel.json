@@ -1,37 +1,49 @@
 {
   "version": 2,
-  "routes": [
+  "rewrites": [
     {
-      "src": "/static/(.*)",
-      "dest": "/public/static/$1"
+      "source": "/api/:path*",
+      "destination": "/api/index.py"
     },
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.py"
+      "source": "/leads",
+      "destination": "/api/index.py"
     },
     {
-      "src": "/leads",
-      "dest": "/api/index.py"
+      "source": "/stats",
+      "destination": "/api/index.py"
     },
     {
-      "src": "/stats",
-      "dest": "/api/index.py"
+      "source": "/audit-single",
+      "destination": "/api/index.py"
     },
     {
-      "src": "/audit-single",
-      "dest": "/api/index.py"
+      "source": "/run",
+      "destination": "/api/index.py"
     },
     {
-      "src": "/run",
-      "dest": "/api/index.py"
+      "source": "/status",
+      "destination": "/api/index.py"
     },
     {
-      "src": "/send-email",
-      "dest": "/api/index.py"
+      "source": "/send-email",
+      "destination": "/api/index.py"
     },
     {
-      "src": "/(.*)",
-      "dest": "/public/$1"
+      "source": "/download/:path*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/update-status",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/save-smtp-settings",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/get-smtp-settings",
+      "destination": "/api/index.py"
     }
   ]
 }
