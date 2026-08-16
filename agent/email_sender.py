@@ -1,64 +1,65 @@
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 from typing import Dict
 from config import SENDER_EMAIL, GMAIL_APP_PASSWORD
 
 def send_outreach_email(
-    to_email: str,
+    recipient_email: str,
     subject: str,
     body_text: str,
     sender_email: str = "",
     app_password: str = ""
 ) -> Dict[str, any]:
     """
-    Sends a direct cold outreach email using Gmail SMTP (smtp.gmail.com:587).
-    Requires a Google App Password (16 characters from Google Account -> Security -> App Passwords).
+    Sends a cold outreach email via Gmail SMTP using SSL (port 465).
     """
-    from_addr = sender_email.strip() if sender_email else SENDER_EMAIL
-    pwd = app_password.strip().replace(" ", "") if app_password else GMAIL_APP_PASSWORD.replace(" ", "")
+    sender = sender_email or os.environ.get("SENDER_EMAIL", SENDER_EMAIL)
+    pwd = app_password or os.environ.get("GMAIL_APP_PASSWORD", GMAIL_APP_PASSWORD)
     
-    if not to_email or "@" not in to_email:
-        return {"success": False, "error": "Invalid recipient email address"}
+    # Strip spaces from 16-character Gmail app password if present
+    if pwd:
+        pwd = pwd.replace(" ", "").strip()
         
-    if not from_addr or "@" not in from_addr:
-        return {"success": False, "error": "Sender email not configured"}
-        
-    if not pwd:
+    if not sender or not pwd:
         return {
-            "success": False, 
-            "error": "Google App Password missing. Please enter your 16-character Google App Password in Settings."
+            "success": False,
+            "error": "Gmail SMTP credentials not configured. Please set your Gmail App Password in Email Setup."
+        }
+        
+    if not recipient_email or "@" not in recipient_email:
+        return {
+            "success": False,
+            "error": f"Invalid recipient email address: {recipient_email}"
         }
         
     try:
         msg = MIMEMultipart("alternative")
-        msg["From"] = f"Talha Yousaf <{from_addr}>"
-        msg["To"] = to_email.strip()
+        msg["From"] = formataddr(("Talha Yousaf | E-Commerce Specialist", sender))
+        msg["To"] = recipient_email.strip()
         msg["Subject"] = subject.strip()
         
         # Attach plain text
-        part = MIMEText(body_text.strip(), "plain", "utf-8")
-        msg.attach(part)
+        msg.attach(MIMEText(body_text.strip(), "plain", "utf-8"))
         
-        # Connect to Gmail SMTP
-        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=15)
-        server.ehlo()
-        server.starttls()
-        server.login(from_addr, pwd)
-        server.sendmail(from_addr, [to_email.strip()], msg.as_string())
-        server.quit()
-        
+        # Send via SSL
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=12) as server:
+            server.login(sender, pwd)
+            server.sendmail(sender, recipient_email.strip(), msg.as_string())
+            
         return {
-            "success": True, 
-            "message": f"Email successfully delivered to {to_email} from {from_addr}"
+            "success": True,
+            "message": f"Email successfully delivered to {recipient_email}"
         }
     except smtplib.SMTPAuthenticationError:
         return {
-            "success": False, 
-            "error": "Gmail Authentication Failed: Invalid App Password. Generate a 16-char App Password at myaccount.google.com/apppasswords"
+            "success": False,
+            "error": "Gmail Authentication Failed: Please check your Gmail App Password (requires 2-Step Verification + App Password)."
         }
     except Exception as e:
-        return {"success": False, "error": f"Failed to send email: {str(e)}"}
-
-if __name__ == "__main__":
-    print("Testing email sender module configuration...")
+        return {
+            "success": False,
+            "error": f"Failed to send email: {str(e)}"
+        }

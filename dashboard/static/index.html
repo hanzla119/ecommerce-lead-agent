@@ -1,190 +1,279 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI E-Commerce Lead Gen & Outreach System | Talha Yousaf</title>
-  <link rel="stylesheet" href="/static/style.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Talha Yousaf | Autonomous E-Commerce Lead Gen & Outreach Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-
-  <div class="container">
-    <!-- Header -->
-    <header>
-      <div class="brand-wrapper">
-        <div class="logo-badge">
-          <i class="fa-solid fa-bolt"></i>
+  <div class="app-container">
+    <!-- TOP NAVIGATION BAR -->
+    <header class="navbar">
+      <div class="nav-brand">
+        <div class="logo-icon">
+          <i class="fa-solid fa-bolt-lightning"></i>
         </div>
-        <div class="brand-title">
-          <h1>E-Commerce Lead & Outreach Agent</h1>
-          <p>Autonomous AI Client Acquisition for UK, US, Australia & Europe</p>
+        <div class="brand-text">
+          <h1>E-Commerce Lead Agent</h1>
+          <p class="subtitle">Autonomous Discovery, Technical Audit & Pitch Generation | <span class="badge-proof">£696k+ Scaled</span></p>
         </div>
       </div>
-      <div class="header-actions">
-        <button class="btn btn-secondary" onclick="openEmailSettingsModal()">
-          <i class="fa-solid fa-envelope-circle-check" style="color: var(--cyan);"></i> Email Setup (Gmail)
+
+      <div class="nav-actions">
+        <button id="btn-email-settings" class="btn btn-secondary">
+          <i class="fa-solid fa-envelope-circle-check"></i> Email Setup
         </button>
-        <button class="btn btn-secondary" onclick="fetchLeads()">
-          <i class="fa-solid fa-rotate"></i> Refresh
+        <button id="btn-export-excel" class="btn btn-outline">
+          <i class="fa-solid fa-file-excel"></i> Export Excel
         </button>
-        <a href="/api/download/excel" class="btn btn-outline-emerald">
-          <i class="fa-solid fa-file-excel"></i> Export Excel (.xlsx)
-        </a>
+        <button id="btn-export-csv" class="btn btn-outline">
+          <i class="fa-solid fa-file-csv"></i> Export CSV
+        </button>
       </div>
     </header>
 
-    <!-- Stats Cards -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Total Leads Discovered</div>
-        <div class="stat-value" id="stat-total">0</div>
-        <div class="stat-hint">Global Stores Analyzed</div>
+    <!-- KPI STATS OVERVIEW -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon blue"><i class="fa-solid fa-bullseye"></i></div>
+        <div class="kpi-info">
+          <span class="kpi-label">Total Leads</span>
+          <h2 id="kpi-total">0</h2>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Emails Extracted</div>
-        <div class="stat-value" id="stat-emails" style="color: var(--cyan);">0</div>
-        <div class="stat-hint">Direct Business & Contact Emails</div>
+      <div class="kpi-card">
+        <div class="kpi-icon green"><i class="fa-solid fa-envelope-circle-check"></i></div>
+        <div class="kpi-info">
+          <span class="kpi-label">Deliverable Emails</span>
+          <h2 id="kpi-emails">0</h2>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Founder LinkedIn Profiles</div>
-        <div class="stat-value" id="stat-linkedin" style="color: var(--primary);">0</div>
-        <div class="stat-hint">Decision Makers (Founders / CEOs)</div>
+      <div class="kpi-card">
+        <div class="kpi-icon purple"><i class="fa-brands fa-linkedin"></i></div>
+        <div class="kpi-info">
+          <span class="kpi-label">Founders / CEOs</span>
+          <h2 id="kpi-founders">0</h2>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Missing Ad Pixels / High Opp</div>
-        <div class="stat-value" id="stat-missing" style="color: var(--rose);">0</div>
-        <div class="stat-hint">Stores leaking ROAS / Prime Targets</div>
+      <div class="kpi-card">
+        <div class="kpi-icon red"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="kpi-info">
+          <span class="kpi-label">Pixel / Tracking Leaks</span>
+          <h2 id="kpi-pixels">0</h2>
+        </div>
       </div>
-    </div>
+      <div class="kpi-card">
+        <div class="kpi-icon gold"><i class="fa-solid fa-star"></i></div>
+        <div class="kpi-info">
+          <span class="kpi-label">High Opportunity</span>
+          <h2 id="kpi-opportunity">0</h2>
+        </div>
+      </div>
+    </section>
 
-    <!-- Control Center -->
-    <div class="control-panel">
-      <!-- Batch Lead Discovery Agent -->
+    <!-- ACTION PANELS -->
+    <div class="action-grid">
+      <!-- 1. INSTANT SINGLE STORE AUDIT -->
       <div class="panel-card">
-        <h2><i class="fa-solid fa-robot" style="color: var(--primary);"></i> Run AI Lead Discovery Agent</h2>
-        <form id="search-form" class="form-grid" onsubmit="handleSearch(event)">
-          <div class="form-group">
-            <label>Niche / Product Category</label>
-            <input type="text" id="input-niche" class="form-control" placeholder="e.g. streetwear fashion, jewelry, supplements" required value="streetwear sneakers">
+        <div class="panel-header">
+          <div class="panel-title">
+            <i class="fa-solid fa-magnifying-glass-chart"></i> Instant Single Store Audit & Pitch
           </div>
-          <div class="form-group">
-            <label>Source Channel</label>
-            <select id="input-source" class="form-control">
-              <option value="web" selected>🌐 Shopify / Web</option>
-              <option value="instagram">📷 Instagram D2C</option>
-            </select>
+          <span class="badge-tag">Fast Audit</span>
+        </div>
+        <p class="panel-desc">Paste any store URL (e.g. <code>footdistrict.com</code>) to instantly inspect tracking pixels, extract emails & founders, and generate pitches.</p>
+        <div class="input-inline">
+          <div class="input-group flex-1">
+            <i class="fa-solid fa-globe input-icon"></i>
+            <input type="text" id="single-url-input" placeholder="e.g. brandstore.com or https://store.co.uk" />
           </div>
-          <div class="form-group">
-            <label>Target Region</label>
-            <select id="input-region" class="form-control">
-              <option value="UK" selected>UK (United Kingdom)</option>
-              <option value="US">US (United States)</option>
-              <option value="Australia">Australia</option>
-              <option value="Europe">Europe</option>
-            </select>
+          <select id="single-region-select" class="select-box">
+            <option value="UK">UK 🇬🇧</option>
+            <option value="US">US 🇺🇸</option>
+            <option value="Pakistan">Pakistan 🇵🇰</option>
+            <option value="Canada">Canada 🇨🇦</option>
+            <option value="Australia">Australia 🇦🇺</option>
+            <option value="UAE">UAE 🇦🇪</option>
+            <option value="Europe">Europe 🇪🇺</option>
+          </select>
+          <button id="btn-single-audit" class="btn btn-primary">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Audit Store
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. BATCH LEAD DISCOVERY AGENT -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <i class="fa-solid fa-robot"></i> Multi-Threaded Batch Lead Discovery
           </div>
-          <div class="form-group">
-            <label>Leads Count</label>
-            <input type="number" id="input-count" class="form-control" value="10" min="1" max="200">
+          <span class="badge-tag green">8 Workers Active</span>
+        </div>
+        <p class="panel-desc">Autonomous multi-platform crawler discovering up to 200 qualified e-commerce brands across Shopify, WooCommerce & Instagram.</p>
+        <div class="discovery-controls">
+          <div class="input-group">
+            <i class="fa-solid fa-tag input-icon"></i>
+            <input type="text" id="batch-niche-input" placeholder="e.g. Footwear, Skincare, Streetwear, Jewelry" value="Footwear & Sneakers" />
           </div>
-          <button type="submit" id="btn-run-agent" class="btn btn-primary">
+          <select id="batch-region-select" class="select-box">
+            <option value="UK" selected>UK Market 🇬🇧</option>
+            <option value="US">US Market 🇺🇸</option>
+            <option value="Pakistan">Pakistan Market 🇵🇰</option>
+            <option value="Canada">Canada 🇨🇦</option>
+            <option value="Australia">Australia 🇦🇺</option>
+            <option value="UAE">UAE 🇦🇪</option>
+            <option value="Europe">Europe 🇪🇺</option>
+          </select>
+          <select id="batch-source-select" class="select-box">
+            <option value="web" selected>Web & Shopify SERP</option>
+            <option value="instagram">Instagram D2C Brands</option>
+          </select>
+          <select id="batch-count-select" class="select-box">
+            <option value="10">10 Leads (Instant)</option>
+            <option value="25" selected>25 Leads (Fast)</option>
+            <option value="50">50 Leads</option>
+            <option value="100">100 Leads</option>
+            <option value="200">200 Leads (Deep Search)</option>
+          </select>
+          <button id="btn-launch-agent" class="btn btn-gradient">
             <i class="fa-solid fa-play"></i> Launch Agent
           </button>
-        </form>
-
-        <!-- Live Agent Progress Box -->
-        <div id="progress-box" class="agent-progress-box">
-          <div class="progress-header">
-            <span id="progress-step"><i class="fa-solid fa-spinner fa-spin"></i> Agent running...</span>
-            <span id="progress-count">0/0</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div id="progress-fill" class="progress-bar-fill"></div>
-          </div>
-          <div id="terminal-logs" class="terminal-logs"></div>
         </div>
-      </div>
-
-      <!-- Single Store Quick Audit -->
-      <div class="panel-card">
-        <h2><i class="fa-solid fa-magnifying-glass-chart" style="color: var(--cyan);"></i> Instant Single Store Audit</h2>
-        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Paste any Shopify or WooCommerce URL to generate immediate CRO audit & pitches.</p>
-        <form id="single-form" onsubmit="handleSingleAudit(event)">
-          <div class="single-audit-form">
-            <input type="url" id="single-url" class="form-control" placeholder="https://store.co.uk" required>
-            <button type="submit" id="btn-single-audit" class="btn btn-secondary">
-              <i class="fa-solid fa-bolt"></i> Audit
-            </button>
-          </div>
-        </form>
       </div>
     </div>
 
-    <!-- Leads Display Section -->
-    <div class="section-header">
-      <h2><i class="fa-solid fa-users" style="color: var(--emerald);"></i> Discovered Leads (<span id="leads-count-header">0</span>)</h2>
-      <div class="filters-bar">
-        <input type="text" id="search-filter" class="form-control search-input" placeholder="🔍 Search brand, founder, email..." oninput="filterLeads()">
-        <select id="region-filter" class="form-control" style="width: 140px;" onchange="filterLeads()">
-          <option value="ALL">All Regions</option>
-          <option value="UK">UK</option>
-          <option value="US">US</option>
-          <option value="Australia">Australia</option>
-          <option value="Europe">Europe</option>
-        </select>
-        <select id="status-filter" class="form-control" style="width: 150px;" onchange="filterLeads()">
-          <option value="ALL">All Statuses</option>
-          <option value="Ready to Send">Ready to Send</option>
-          <option value="Contacted">Contacted</option>
-          <option value="Meeting Booked">Meeting Booked</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Leads Grid Container -->
-    <div id="leads-grid" class="leads-grid">
-      <!-- Rendered dynamically by app.js -->
-    </div>
-  </div>
-
-  <!-- Email Settings Modal -->
-  <div id="email-modal" class="modal-overlay" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3><i class="fa-solid fa-gear" style="color: var(--cyan);"></i> Gmail Outreach Setup</h3>
-        <button class="btn-close" onclick="closeEmailSettingsModal()">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
-          Send personalized cold emails directly from your dashboard using your Gmail account.
-        </p>
-        
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label>Your Gmail Address</label>
-          <input type="email" id="modal-sender-email" class="form-control" value="marketingbytalha@gmail.com" placeholder="marketingbytalha@gmail.com">
+    <!-- LIVE TERMINAL / PROGRESS LOGS -->
+    <div id="progress-box" class="progress-box hidden">
+      <div class="progress-header">
+        <div class="status-indicator">
+          <span class="pulse-dot"></span>
+          <span id="agent-step-text">Discovering stores...</span>
         </div>
+        <div class="progress-counter">
+          <span id="progress-count">0/0</span>
+        </div>
+      </div>
+      <div class="progress-bar-container">
+        <div id="progress-fill" class="progress-fill" style="width: 0%;"></div>
+      </div>
+      <div id="terminal-logs" class="terminal-logs"></div>
+    </div>
 
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label>Google App Password (16 Characters)</label>
-          <input type="password" id="modal-app-password" class="form-control" placeholder="xxxx xxxx xxxx xxxx">
-          <div style="font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.4;">
-            💡 <b>How to get it for free:</b> Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: var(--primary);">myaccount.google.com/apppasswords</a> ➔ Login ➔ Type "Outreach Agent" ➔ Click "Create" ➔ Copy the 16-letter password and paste it here.
+    <!-- LEADS MANAGEMENT SECTION -->
+    <section class="leads-section">
+      <div class="leads-toolbar">
+        <div class="toolbar-left">
+          <h2>Qualified Leads (<span id="lead-count-badge">0</span>)</h2>
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="lead-search-input" placeholder="Search by brand, email, founder..." />
           </div>
         </div>
 
-        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-          <button class="btn btn-secondary" onclick="closeEmailSettingsModal()">Cancel</button>
-          <button class="btn btn-primary" onclick="saveEmailSettings()">
-            <i class="fa-solid fa-floppy-disk"></i> Save Credentials
+        <div class="toolbar-right">
+          <select id="filter-region" class="filter-select">
+            <option value="ALL">All Regions</option>
+            <option value="UK">UK</option>
+            <option value="US">US</option>
+            <option value="Pakistan">Pakistan</option>
+            <option value="Other">Other</option>
+          </select>
+          <select id="filter-status" class="filter-select">
+            <option value="ALL">All Statuses</option>
+            <option value="New Lead">New Lead</option>
+            <option value="Contacted">Contacted</option>
+            <option value="Replied">Replied</option>
+            <option value="Meeting Booked">Meeting Booked</option>
+          </select>
+          <button id="btn-refresh" class="btn btn-icon" title="Refresh Leads">
+            <i class="fa-solid fa-arrows-rotate"></i>
           </button>
         </div>
       </div>
+
+      <!-- LEADS CONTAINER -->
+      <div id="leads-container" class="leads-container">
+        <!-- Lead Cards Rendered Dynamically Here -->
+        <div class="empty-state">
+          <i class="fa-solid fa-layer-group empty-icon"></i>
+          <h3>No Leads Found Yet</h3>
+          <p>Launch the discovery agent or paste a single store URL above to generate audited leads and customized pitches.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- EMAIL SENDER MODAL -->
+  <div id="email-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-paper-plane"></i> Send Direct Outreach Email</h3>
+        <button class="modal-close" id="btn-close-email-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Recipient Email:</label>
+          <input type="email" id="modal-to-email" readonly class="input-readonly" />
+        </div>
+        <div class="form-group">
+          <label>Email Subject:</label>
+          <input type="text" id="modal-subject" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Email Body:</label>
+          <textarea id="modal-body" rows="9" class="form-control text-area"></textarea>
+        </div>
+        <div id="email-alert" class="alert-box hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-send" class="btn btn-secondary">Cancel</button>
+        <button id="btn-confirm-send" class="btn btn-primary">
+          <i class="fa-solid fa-paper-plane"></i> Send Email
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- Toast Notification Container -->
-  <div id="toast-container" class="toast-container"></div>
+  <!-- SMTP SETTINGS MODAL -->
+  <div id="smtp-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-gear"></i> Gmail SMTP Configuration</h3>
+        <button class="modal-close" id="btn-close-smtp-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-info">Send cold emails directly through your official Gmail account.</p>
+        <div class="form-group">
+          <label>Sender Gmail Address:</label>
+          <input type="email" id="smtp-sender-email" value="marketingbytalha@gmail.com" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Gmail 16-Digit App Password:</label>
+          <input type="password" id="smtp-app-password" placeholder="Enter 16-digit app password" class="form-control" />
+          <small class="help-text">Generate via Google Account &gt; Security &gt; 2-Step Verification &gt; App Passwords.</small>
+        </div>
+        <div id="smtp-alert" class="alert-box hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-smtp" class="btn btn-secondary">Cancel</button>
+        <button id="btn-save-smtp" class="btn btn-primary">
+          <i class="fa-solid fa-check"></i> Save Credentials
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="toast hidden">
+    <i id="toast-icon" class="fa-solid fa-check-circle"></i>
+    <span id="toast-message">Notification message</span>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>

@@ -1,138 +1,207 @@
-import json
+import os
 import re
-import urllib.parse
-from typing import Dict
+from typing import Dict, List, Optional
 from google import genai
-from google.genai import types
-from config import GEMINI_API_KEY, GEMINI_MODEL, PORTFOLIO_PROOF
+from config import GEMINI_API_KEY, PORTFOLIO_PROOF
 
-FALLBACK_MODELS = [GEMINI_MODEL, "gemini-flash-latest", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-pro-latest"]
+def clean_gemini_text(text: str) -> str:
+    """Removes markdown code fences and extraneous formatting."""
+    text = re.sub(r"^```[a-zA-Z]*\n", "", text)
+    text = re.sub(r"\n```$", "", text)
+    return text.strip()
 
-def get_genai_client():
-    return genai.Client(api_key=GEMINI_API_KEY)
-
-def sanitize_brand_name(raw_name: str, url: str) -> str:
-    """Extracts a clean, natural brand name without raw protocols, URLs or domain extensions."""
-    if raw_name and not raw_name.startswith("http") and not raw_name.startswith("www.") and len(raw_name) < 35:
-        clean = re.sub(r'\.(com|co\.uk|co|store|shop|io|org|net|us|eu|com\.au|es|de|fr)$', '', raw_name, flags=re.IGNORECASE).strip()
-        clean = re.sub(r'[^\w\s\'-]', '', clean).strip()
-        if clean and len(clean) >= 2:
-            return clean.title()
-            
-    target_url = url if url.startswith("http") else f"https://{url}"
-    parsed = urllib.parse.urlparse(target_url)
-    host = parsed.netloc.replace("www.", "")
-    base = host.split(".")[0]
-    return base.title() if base and len(base) >= 2 else "your brand"
-
-def generate_personalized_pitches(brand_name: str, store_url: str, region: str, contact_data: Dict, audit_data: Dict) -> Dict[str, str]:
-    """
-    Generates 4 distinct hyper-converting, ultra-attractive outreach pitch templates
-    with strict client confidentiality (never mentions past client names like Sameday Trainers).
-    """
-    clean_brand = sanitize_brand_name(brand_name, store_url)
-    raw_founder = contact_data.get("founder_name", "").strip()
+def build_fallback_pitches(brand_name: str, region: str, founder_name: str = "", audit_data: Optional[Dict] = None) -> Dict[str, str]:
+    """Provides high-converting, proven outreach templates if AI is offline."""
+    salutation = f"Hi {founder_name.split()[0]}" if founder_name else f"Hi {brand_name} Team"
     
-    # Clean founder first name
-    if raw_founder and len(raw_founder.split()) > 0 and raw_founder.lower() not in ["founder", "ceo", "there", "owner", "team"]:
-        founder_first_name = raw_founder.split()[0].title()
+    # Audit insights
+    gaps = audit_data.get("critical_gaps", []) if audit_data else []
+    gap_summary = gaps[0] if gaps else "product page social proof and mobile retargeting"
+    
+    # Regional Case Study Selection
+    if region.upper() == "UK":
+        proof_line = "I recently scaled a UK athletic & lifestyle brand from £4.6k to £696,643.80 (+14,752% growth, £88k in a single month) at a 4.89% CVR and 3.8x ROAS."
+        stat_hook = "scaled UK brand from £4.6k to £696k+"
+    elif region.upper() in ["US", "USA", "CANADA", "AUSTRALIA"]:
+        proof_line = "I recently scaled a US D2C store to $34k+ across 569 orders at a 4.89% conversion rate ($59 AOV) by plugging tracking leaks and dialing in paid search."
+        stat_hook = "scaled US store to 4.89% CVR"
+    elif region.upper() in ["PAKISTAN", "PK", "UAE"]:
+        proof_line = "I recently scaled an e-commerce apparel brand to PKR 11.2M+ (3,540+ orders) while maintaining a 93/100 Meta Ads optimization score across PKR 3.5M+ spend."
+        stat_hook = "scaled apparel brand to 11.2M+ PKR"
     else:
-        founder_first_name = "there"
-        
-    gaps = audit_data.get("critical_gaps", [])
-    strengths = audit_data.get("strengths", [])
-    platform = audit_data.get("platform", "Shopify / WooCommerce")
-    speed_ms = audit_data.get("response_time_ms", 0)
-    has_meta = audit_data.get("has_meta_pixel", True)
-    has_tiktok = audit_data.get("has_tiktok_pixel", True)
+        proof_line = "I recently scaled an e-commerce brand from £4.6k to £696k+ (+14,752% growth) at a 4.89% CVR by fixing checkout tracking and ad leaks."
+        stat_hook = "scaled brand from £4.6k to £696k+"
+
+    email_body_1 = f"""{salutation},
+
+Love what you've built with {brand_name}—your site design and positioning look great. While auditing the store, I noticed {gap_summary.lower()}, leaving easy revenue on the table.
+
+{proof_line}
+
+Mind if I send over a quick 2-minute video breakdown showing 2 simple tweaks you can make to fix this for {brand_name}?
+
+Best,
+Talha"""
+
+    email_body_2 = f"""{salutation},
+
+Quick note regarding {brand_name}—spotted a quick tracking and conversion gap: {gap_summary.lower()}, which might be causing paid traffic to bounce without converting.
+
+Fixing these exact tracking and checkout leaks helped our UK e-commerce partner reach £206k+ YTD (+65% YoY) with a 3.8x ROAS.
+
+Open to a 2-minute video breakdown of how to plug this leak?
+
+Best,
+Talha"""
+
+    email_body_3 = f"""{salutation},
+
+I put together a quick technical audit for {brand_name}. Your page speed and branding look solid, but you're leaving revenue on the table due to {gap_summary.lower()}.
+
+Dialing in this exact checkout and ad optimization helped us hit £88,048 in a single month at a 4.89% conversion rate.
+
+Would you be open to seeing a 2-minute video walkthrough?
+
+Best,
+Talha"""
+
+    email_body_4 = f"""{salutation},
+
+Spotted a quick fix on {brand_name}'s checkout & tracking setup ({gap_summary.lower()}). 
+
+Recently scaled a similar store to £696k+ by solving this exact issue. Mind if I send a 2-min video showing how to fix it?
+
+Best,
+Talha"""
+
+    linkedin_note = f"Hi {founder_name.split()[0] if founder_name else 'there'}, love what you're building at {brand_name}. Recently {stat_hook} by dialing in CRO & tracking. Spotted a quick growth opportunity for {brand_name}—would love to connect!"
     
-    gaps_str = "\n- ".join(gaps) if gaps else "Mobile product page speed & checkout UX drop-offs"
-    strengths_str = "\n- ".join(strengths) if strengths else "Strong product catalog aesthetic"
-    
-    system_prompt = f"""
-You are an elite E-Commerce Growth Consultant, Senior Shopify Developer, and Conversion Rate Optimization (CRO) Partner.
-Your name is {PORTFOLIO_PROOF['name']}.
+    instagram_dm = f"Hey team! Love the vibe at {brand_name}. Spotted a quick tracking gap leaking paid traffic. Scaled a similar store to £696k+ recently and made a 2-minute video showing two easy fixes. Mind if I share it here?"
 
-Target Prospect Details:
-- Clean Brand Name: {clean_brand}
-- Store URL: {store_url}
-- Platform: {platform}
-- Target Country / Region: {region}
-- Decision Maker First Name: {founder_first_name}
-
-Technical Audit Findings:
-- Identified Technical Gaps:
-- {gaps_str}
-- Server Response Time: {speed_ms}ms
-- Meta Pixel Active: {has_meta}
-- TikTok Pixel Active: {has_tiktok}
-- Store Strengths:
-- {strengths_str}
-
-Your Real Verified Case Study Data (DO NOT MENTION SPECIFIC CLIENT NAMES LIKE 'Sameday Trainers' — refer to them anonymously as 'a UK lifestyle/footwear e-commerce brand' or 'a similar D2C store'):
-1. Scaled a UK e-commerce store from £4.6k to £696,643+ Gross Sales (+14,752% growth, £650k net sales) with a 4.89% conversion rate and 3.8x ROAS.
-2. Generated £88,048 in a single month through checkout CRO & multi-channel ad retargeting.
-3. Delivered £206,664 YTD revenue in 2026 (+65% YoY growth).
-
-Strict Writing Rules:
-- STRICT PRIVACY: NEVER mention "Sameday Trainers" or specific past client names.
-- CLEAN BRANDING: NEVER output raw website URLs like "https://..." inside the subject or greeting. Always refer to the brand naturally as "{clean_brand}".
-- AUTHENTIC AUDIT: Only mention tracking gaps that were actually found (e.g. if TikTok pixel is missing, mention TikTok retargeting; if load speed is slow, mention mobile checkout latency; if Meta pixel is active, do not say Meta is missing).
-- Tone: Natural, friendly, high-status, zero-fluff (70 to 85 words max).
-- Call to Action: Offer a zero-pressure free 2-minute video breakdown of 2 quick fixes.
-
-Generate a valid JSON object with exactly these 6 keys:
-1. "email_subject_1": e.g. "Idea for {clean_brand} (scaled similar UK store to £696k)"
-2. "email_body_1": High-converting Pitch 1 (Revenue Scaling Proof). Compliment the brand, point out 1 specific audit gap, mention scaling a UK store from £4.6k to £696k+ (£88k in 1 month at 4.89% CVR), offer 2-min video.
-3. "email_subject_2": e.g. "Quick observation on {clean_brand}'s checkout & tracking"
-4. "email_body_2": High-converting Pitch 2 (Technical / ROAS Leak). Focus on technical drop-off / pixel tracking and how fixing it delivered £206k+ YTD and 3.8x ROAS.
-5. "linkedin_note": Connection request message under 260 characters to {founder_first_name} (mention £696k / 4.89% CVR result, no client names).
-6. "instagram_dm": Casual, friendly Instagram DM under 45 words to {clean_brand}.
-
-Return ONLY the raw JSON object.
-"""
-
-    client = get_genai_client()
-    for model_name in FALLBACK_MODELS:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=system_prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json"
-                )
-            )
-            raw_text = response.text.strip()
-            data = json.loads(raw_text)
-            
-            # Sanitize fallback in case LLM slipped the name
-            body1 = data.get("email_body_1", "").replace("Sameday Trainers", "a UK lifestyle brand").replace("sameday trainers", "a UK brand")
-            body2 = data.get("email_body_2", "").replace("Sameday Trainers", "a UK lifestyle brand").replace("sameday trainers", "a UK brand")
-            
-            return {
-                "email_subject": data.get("email_subject_1", f"Idea for {clean_brand} (scaled similar store to £696k)"),
-                "email_body": body1,
-                "email_subject_alt": data.get("email_subject_2", f"Quick observation on {clean_brand}'s checkout & tracking"),
-                "email_body_alt": body2,
-                "linkedin_note": data.get("linkedin_note", "").replace("Sameday Trainers", "a UK brand"),
-                "instagram_dm": data.get("instagram_dm", "").replace("Sameday Trainers", "a UK brand")
-            }
-        except Exception as e:
-            continue
-
-    # Fallback template with verified stats & clean formatting (Zero client names)
-    gap_mention = gaps[0] if gaps else "mobile page load speed and retargeting pixels"
     return {
-        "email_subject": f"Idea for {clean_brand} (scaled similar store to £696k)",
-        "email_body": f"Hi {founder_first_name},\n\nLove what you've built with {clean_brand}—the product collection looks great.\n\nWhile reviewing your store, I noticed a couple of quick technical optimizations around {gap_mention} that are likely causing checkout drop-offs.\n\nRecently, on a similar UK e-commerce brand, fixing these checkout bottlenecks and technical tracking helped scale gross sales from £4.6k to £696,643+ (hitting £88,000+ in a single month at a 4.89% conversion rate).\n\nWould you be open to a 2-minute video breakdown showing 2 quick tweaks you can make to {clean_brand} today?\n\nBest,\nTalha",
-        "email_subject_alt": f"Quick observation on {clean_brand}'s checkout & tracking",
-        "email_body_alt": f"Hey {founder_first_name},\n\nHope you're having a great week. I was checking out {clean_brand} and spotted a quick optimization around {gap_mention}.\n\nWe recently helped a lifestyle e-commerce brand generate £206,600+ YTD (+65% YoY growth) and 3.8x ROAS by eliminating checkout latency and fixing conversion tracking.\n\nHappy to film a quick 2-minute screen recording showing exactly what to tweak on {clean_brand} if you're interested?\n\nCheers,\nTalha",
-        "linkedin_note": f"Hi {founder_first_name}, love what you've built with {clean_brand}. I recently helped scale a similar UK store to £696k+ gross revenue (4.89% CVR) by fixing a few mobile checkout leaks. Would love to connect and share a quick idea!",
-        "instagram_dm": f"Hey {clean_brand} team! Love the aesthetic. Noticed a couple of quick checkout & pixel tweaks on your site. I recently helped scale a UK brand to £696k+ by fixing these. Mind if I send a quick 2-minute video audit with some ideas?"
+        "email_subject": f"Idea for {brand_name} ({stat_hook})",
+        "email_body": email_body_1.strip(),
+        "email_subject_alt": f"Quick observation on {brand_name}'s conversion & tracking",
+        "email_body_alt": email_body_2.strip(),
+        "email_subject_cro": f"Quick CRO fix for {brand_name} (hit £88k/mo with this)",
+        "email_body_cro": email_body_3.strip(),
+        "email_subject_short": f"2-min video for {brand_name}?",
+        "email_body_short": email_body_4.strip(),
+        "linkedin_note": linkedin_note.strip(),
+        "instagram_dm": instagram_dm.strip()
     }
 
-if __name__ == "__main__":
-    test_contact = {"founder_name": "Ben Woolford"}
-    test_audit = {"critical_gaps": ["Missing TikTok Pixel for catalog retargeting"], "platform": "Shopify"}
-    res = generate_personalized_pitches("Footdistrict", "https://footdistrict.com", "UK", test_contact, test_audit)
-    print(json.dumps(res, indent=2))
+def generate_personalized_pitches(
+    brand_name: str,
+    store_url: str,
+    region: str = "UK",
+    contact_data: Optional[Dict] = None,
+    audit_data: Optional[Dict] = None
+) -> Dict[str, str]:
+    """
+    Generates hyper-personalized cold outreach pitches using Google Gemini Flash,
+    injecting verified portfolio proof points with strict NDA client anonymity.
+    """
+    contact_data = contact_data or {}
+    audit_data = audit_data or {}
+    
+    founder_name = contact_data.get("founder_name", "")
+    critical_gaps = audit_data.get("critical_gaps", [])
+    strengths = audit_data.get("strengths", [])
+    platform = audit_data.get("platform", "Shopify")
+    speed_ms = audit_data.get("response_time_ms", 0)
+
+    # If Gemini API Key is missing or default, return proven high-converting templates
+    api_key = os.environ.get("GEMINI_API_KEY", GEMINI_API_KEY)
+    if not api_key:
+        return build_fallback_pitches(brand_name, region, founder_name, audit_data)
+
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        prompt = f"""
+You are Talha Yousaf, an expert E-commerce Growth & Shopify Specialist with a BS in Computer Science.
+You are writing personalized, high-converting cold outreach messages to e-commerce decision-makers.
+
+PROVEN TRACK RECORD & CASE STUDY PROOF (ALWAYS ANONYMIZED - NEVER MENTION CLIENT BRAND NAMES):
+- Scaled a UK athletic & lifestyle footwear brand from £4,690 to £696,643.80 Gross Sales (+14,752% growth, £650k net sales) with £88,048 in a single month and £206k+ YTD at 4.89% CVR and 3.8x ROAS.
+- Scaled a US D2C specialty store to $34,201 (569 orders, 4.89% CVR, $59.03 AOV).
+- Scaled a fashion & suiting apparel brand to PKR 11.2M+ (3,540+ orders) with PKR 3.5M+ ad spend (93/100 Meta optimization score).
+- Managed 70k+ Google Ads clicks & achieved 8.14% CTR on TikTok mobile ads.
+
+TARGET STORE INFORMATION:
+- Brand Name: {brand_name}
+- Store Website: {store_url}
+- Region: {region}
+- Decision Maker / Founder: {founder_name or 'Not specified'}
+- Platform: {platform}
+- Server Speed: {speed_ms}ms
+- Strengths: {', '.join(strengths) if strengths else 'Solid visual brand'}
+- Critical Leaks / Gaps Detected: {', '.join(critical_gaps) if critical_gaps else 'Missing advanced ad retargeting and social proof app'}
+
+RULES:
+1. STRICT NDA: NEVER use or mention the client name "Sameday Trainers" or specific client URLs. Refer to them strictly as "a UK footwear & lifestyle brand" or "a similar UK/US store".
+2. Keep email under 110 words. Clear, conversational, non-pushy.
+3. Call to Action: Offer a free 2-minute video breakdown of 2 specific tweaks.
+4. Output EXACTLY in this format with labels:
+
+[EMAIL_SUBJECT_1]
+<Subject line with high curiosity & proof>
+
+[EMAIL_BODY_1]
+<Email Body 1 - Revenue Scale Hook>
+
+[EMAIL_SUBJECT_2]
+<Alternative Subject line focused on tracking/CRO>
+
+[EMAIL_BODY_2]
+<Email Body 2 - Tracking & ROAS Leak Hook>
+
+[EMAIL_SUBJECT_3]
+<Subject line focused on 4.89% CVR / speed>
+
+[EMAIL_BODY_3]
+<Email Body 3 - CRO & Checkout Optimization Hook>
+
+[EMAIL_SUBJECT_4]
+<Short 4-line punchy subject>
+
+[EMAIL_BODY_4]
+<Email Body 4 - Ultra-short 4-line Founder hook>
+
+[LINKEDIN_NOTE]
+<Under 260 characters personalized connection note>
+
+[INSTAGRAM_DM]
+<Under 45 words casual, direct Instagram DM>
+"""
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+        
+        text = response.text if hasattr(response, "text") else str(response)
+        
+        # Parse sections
+        def extract_tag(tag: str, default: str = "") -> str:
+            pattern = rf"\[{tag}\]\s*([\s\S]*?)(?=\n\[[A-Z_0-9]+\]|$)"
+            m = re.search(pattern, text)
+            return m.group(1).strip() if m else default
+
+        fb = build_fallback_pitches(brand_name, region, founder_name, audit_data)
+        
+        return {
+            "email_subject": clean_gemini_text(extract_tag("EMAIL_SUBJECT_1", fb["email_subject"])),
+            "email_body": clean_gemini_text(extract_tag("EMAIL_BODY_1", fb["email_body"])),
+            "email_subject_alt": clean_gemini_text(extract_tag("EMAIL_SUBJECT_2", fb["email_subject_alt"])),
+            "email_body_alt": clean_gemini_text(extract_tag("EMAIL_BODY_2", fb["email_body_alt"])),
+            "email_subject_cro": clean_gemini_text(extract_tag("EMAIL_SUBJECT_3", fb["email_subject_cro"])),
+            "email_body_cro": clean_gemini_text(extract_tag("EMAIL_BODY_3", fb["email_body_cro"])),
+            "email_subject_short": clean_gemini_text(extract_tag("EMAIL_SUBJECT_4", fb["email_subject_short"])),
+            "email_body_short": clean_gemini_text(extract_tag("EMAIL_BODY_4", fb["email_body_short"])),
+            "linkedin_note": clean_gemini_text(extract_tag("LINKEDIN_NOTE", fb["linkedin_note"])),
+            "instagram_dm": clean_gemini_text(extract_tag("INSTAGRAM_DM", fb["instagram_dm"]))
+        }
+    except Exception as e:
+        print(f"Gemini generation error: {e}, using fallback.")
+        return build_fallback_pitches(brand_name, region, founder_name, audit_data)

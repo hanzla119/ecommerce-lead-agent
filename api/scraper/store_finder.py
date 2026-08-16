@@ -1,99 +1,121 @@
 import re
 import urllib.parse
-from typing import List, Set
-from ddgs import DDGS
+from typing import List, Dict, Set
+import requests
+from bs4 import BeautifulSoup
+from duckduckgo_search import DDGS
 
-# List of domains to exclude (aggregators, search engines, marketplaces)
+# Excluded generic marketplaces and directories
 EXCLUDED_DOMAINS = {
-    "shopify.com", "apps.shopify.com", "community.shopify.com",
-    "facebook.com", "instagram.com", "tiktok.com", "linkedin.com", "youtube.com",
-    "amazon.com", "amazon.co.uk", "ebay.com", "ebay.co.uk", "etsy.com", "pinterest.com",
-    "reddit.com", "twitter.com", "x.com", "trustpilot.com", "yelp.com", "wikipedia.org",
-    "quora.com", "medium.com", "aliexpress.com", "walmart.com", "target.com",
-    "stockx.com", "asos.com", "zalando.co.uk", "shein.co.uk", "temu.com", "nike.com", "adidas.com",
-    "costco.com", "wayfair.com", "sephora.com", "nordstrom.com", "zara.com", "hm.com"
+    "amazon.com", "amazon.co.uk", "ebay.com", "ebay.co.uk", "etsy.com",
+    "walmart.com", "target.com", "aliexpress.com", "alibaba.com",
+    "shopify.com", "myshopify.com", "facebook.com", "instagram.com",
+    "twitter.com", "x.com", "linkedin.com", "youtube.com", "pinterest.com",
+    "tiktok.com", "wikipedia.org", "reddit.com", "quora.com", "medium.com",
+    "yelp.com", "trustpilot.com", "google.com", "bing.com", "yahoo.com",
+    "asos.com", "zara.com", "shein.com", "temu.com", "wayfair.com"
 }
 
-def clean_url(url: str) -> str:
-    """Extract clean base URL (protocol + domain)."""
-    parsed = urllib.parse.urlparse(url)
-    if not parsed.scheme or not parsed.netloc:
+def clean_url_to_root(url: str) -> str:
+    """Extracts https://domain.com from any raw URL string."""
+    if not url:
         return ""
-    return f"{parsed.scheme}://{parsed.netloc}".lower()
+    url = url.strip()
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "https://" + url
+    try:
+        parsed = urllib.parse.urlparse(url)
+        domain = parsed.netloc.lower()
+        if domain.startswith("www."):
+            domain = domain[4:]
+        if domain in EXCLUDED_DOMAINS or any(domain.endswith("." + exc) for exc in EXCLUDED_DOMAINS):
+            return ""
+        return f"https://{domain}"
+    except Exception:
+        return ""
 
-def is_valid_store_domain(domain_url: str) -> bool:
-    """Check if the extracted domain is a valid independent e-commerce store."""
-    if not domain_url:
-        return False
-    parsed = urllib.parse.urlparse(domain_url)
-    netloc = parsed.netloc.lower()
+def generate_search_queries(niche: str, region: str) -> List[str]:
+    """Generates multiple search variations to discover up to 200 high-converting stores."""
+    region_term = "" if region.lower() in ["global", "world"] else region
     
-    # Check if domain or any excluded domain matches
-    for excluded in EXCLUDED_DOMAINS:
-        if excluded in netloc or netloc.endswith(excluded):
-            # Allow individual *.myshopify.com stores, but exclude main shopify.com
-            if netloc != "shopify.com" and netloc.endswith(".myshopify.com"):
-                continue
-            return False
-            
-    # Filter common non-store patterns
-    if any(p in domain_url for p in ["blog", "article", "news", "forum", "wiki", "youtube"]):
-        return False
-        
-    return True
-
-def find_shopify_stores(niche: str, region: str = "UK", max_results: int = 20) -> List[str]:
-    """
-    Discovers live e-commerce stores in target niches and regions using search queries (supports up to 200 leads).
-    """
-    discovered_stores: Set[str] = set()
-    
-    # Sub-queries to ensure we can scale up to 200+ unique stores
     queries = [
-        f'{niche} online store {region} free delivery',
-        f'{niche} {region} "powered by shopify"',
-        f'{niche} "add to cart" {region} brand',
-        f'site:myshopify.com {niche} {region}',
-        f'{niche} boutique shop {region} "shipping"',
-        f'best independent {niche} brands {region} "shop now"',
-        f'{niche} direct to consumer store {region}',
-        f'{niche} brand "checkout" {region}'
+        f'"{niche}" site:.co.uk "powered by shopify"' if region == "UK" else f'"{niche}" store "powered by shopify" {region_term}',
+        f'best "{niche}" direct to consumer brands {region_term}',
+        f'shop "{niche}" online "cart" "checkout" {region_term}',
+        f'"{niche}" boutiques online {region_term}',
+        f'independent "{niche}" clothing footwear stores {region_term}',
+        f'top trending "{niche}" brands {region_term}',
+        f'"{niche}" "free shipping on orders over" {region_term}',
+        f'"{niche}" "add to bag" "view cart" {region_term}',
+        f'"{niche}" "powered by shopify" London Manchester' if region == "UK" else f'"{niche}" "powered by shopify" New York Los Angeles',
+        f'"{niche}" "customer reviews" "secure checkout" {region_term}'
     ]
-    
-    # Add major cities for deeper regional search if needed
-    if region.upper() == "UK":
-        queries.extend([
-            f'{niche} London store "add to cart"',
-            f'{niche} Manchester online shop "shopify"',
-            f'{niche} Birmingham e-commerce brand'
-        ])
-    elif region.upper() == "US":
-        queries.extend([
-            f'{niche} California store "powered by shopify"',
-            f'{niche} New York boutique "checkout"',
-            f'{niche} Texas online store'
-        ])
-    
-    ddgs = DDGS()
-    
-    for query in queries:
-        if len(discovered_stores) >= max_results:
-            break
-        try:
-            results = ddgs.text(query, max_results=min(max_results * 2, 100))
-            if results:
-                for r in results:
-                    raw_url = r.get("href", "")
-                    base_url = clean_url(raw_url)
-                    if base_url and is_valid_store_domain(base_url):
-                        discovered_stores.add(base_url)
-                        if len(discovered_stores) >= max_results:
-                            break
-        except Exception as e:
-            print(f"[StoreFinder] Query note for '{query}': {e}")
-            
-    return list(discovered_stores)[:max_results]
+    return queries
 
-if __name__ == "__main__":
-    stores = find_shopify_stores("streetwear sneakers", "UK", max_results=10)
-    print(f"Discovered Stores ({len(stores)}): {stores}")
+def search_duckduckgo(query: str, max_results: int = 40) -> List[str]:
+    """Searches DuckDuckGo for e-commerce stores."""
+    urls = []
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=max_results))
+            for r in results:
+                href = r.get("href") or r.get("link") or ""
+                root = clean_url_to_root(href)
+                if root and root not in urls:
+                    urls.append(root)
+    except Exception as e:
+        print(f"DuckDuckGo search error: {e}")
+    return urls
+
+def search_bing_fallback(query: str, max_results: int = 30) -> List[str]:
+    """Fallback web search parser if DDG is throttled."""
+    urls = []
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    }
+    try:
+        url = f"https://www.bing.com/search?q={urllib.parse.quote_plus(query)}&count={max_results}"
+        res = requests.get(url, headers=headers, timeout=8)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, "html.parser")
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if href.startswith("http") and "bing.com" not in href and "microsoft.com" not in href:
+                    root = clean_url_to_root(href)
+                    if root and root not in urls:
+                        urls.append(root)
+    except Exception:
+        pass
+    return urls
+
+def find_shopify_stores(niche: str, region: str = "UK", limit: int = 20) -> List[Dict[str, str]]:
+    """
+    Finds up to `limit` e-commerce stores (Shopify, WooCommerce, D2C)
+    matching the niche and region.
+    """
+    found_urls: Set[str] = set()
+    leads: List[Dict[str, str]] = []
+    
+    queries = generate_search_queries(niche, region)
+    
+    for q in queries:
+        if len(leads) >= limit:
+            break
+            
+        results = search_duckduckgo(q, max_results=min(40, limit * 2))
+        if not results:
+            results = search_bing_fallback(q, max_results=30)
+            
+        for url in results:
+            if url not in found_urls:
+                found_urls.add(url)
+                leads.append({
+                    "url": url,
+                    "niche": niche,
+                    "region": region,
+                    "source": "Web Search"
+                })
+                if len(leads) >= limit:
+                    break
+                    
+    return leads

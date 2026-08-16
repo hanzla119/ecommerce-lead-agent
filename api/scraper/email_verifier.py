@@ -1,85 +1,68 @@
 import re
-from typing import Dict, Tuple
 import dns.resolver
+from typing import Dict
 
-EMAIL_REGEX = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
-
-# Cache verified domains in memory to avoid duplicate DNS lookups
-_MX_CACHE: Dict[str, Tuple[bool, str]] = {}
+# Cache to avoid repetitive DNS lookups for the same domain
+MX_CACHE: Dict[str, bool] = {}
 
 def verify_email_deliverability(email: str) -> Dict[str, any]:
     """
-    Verifies email syntax and checks domain MX (Mail Exchange) DNS records to confirm deliverability.
-    Returns deliverability status, primary MX host, and reason.
+    Validates email format and performs a live DNS MX lookup to check if
+    the domain is configured to receive emails.
     """
     if not email or not isinstance(email, str):
-        return {"email": "", "is_valid": False, "mx_found": False, "status": "Empty Email"}
+        return {"email": email, "is_valid_format": False, "mx_found": False, "status": "Invalid Format"}
         
     email = email.strip().lower()
     
-    # 1. Regex Syntax Check
-    if not re.match(EMAIL_REGEX, email):
-        return {"email": email, "is_valid": False, "mx_found": False, "status": "Invalid Syntax"}
+    # 1. Syntax Regex Check
+    email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    if not re.match(email_regex, email):
+        return {"email": email, "is_valid_format": False, "mx_found": False, "status": "Invalid Syntax"}
         
-    domain = email.split("@")[-1]
+    domain = email.split("@")[1]
     
-    # 2. Check MX Cache
-    if domain in _MX_CACHE:
-        is_mx, host = _MX_CACHE[domain]
+    # Check cache first
+    if domain in MX_CACHE:
+        has_mx = MX_CACHE[domain]
         return {
             "email": email,
-            "is_valid": True,
-            "mx_found": is_mx,
-            "mx_host": host,
-            "status": "Verified (Deliverable)" if is_mx else "No Mail Server (Undeliverable)"
+            "is_valid_format": True,
+            "mx_found": has_mx,
+            "status": "Verified (Deliverable)" if has_mx else "No MX Record"
         }
         
-    # 3. Perform DNS MX Query
+    # 2. DNS MX Record Lookup
     try:
         resolver = dns.resolver.Resolver()
-        resolver.timeout = 2.0
-        resolver.lifetime = 2.0
-        records = resolver.resolve(domain, 'MX')
-        
-        if records and len(records) > 0:
-            # Sort by priority
-            sorted_records = sorted(records, key=lambda r: r.preference)
-            primary_mx = str(sorted_records[0].exchange).rstrip(".")
-            _MX_CACHE[domain] = (True, primary_mx)
+        resolver.timeout = 3.0
+        resolver.lifetime = 3.0
+        records = resolver.resolve(domain, "MX")
+        has_mx = len(records) > 0
+        MX_CACHE[domain] = has_mx
+        return {
+            "email": email,
+            "is_valid_format": True,
+            "mx_found": has_mx,
+            "status": "Verified (Deliverable)" if has_mx else "No MX Record"
+        }
+    except Exception:
+        # If MX lookup fails, check for A record fallback
+        try:
+            records = resolver.resolve(domain, "A")
+            has_a = len(records) > 0
+            MX_CACHE[domain] = has_a
             return {
                 "email": email,
-                "is_valid": True,
-                "mx_found": True,
-                "mx_host": primary_mx,
-                "status": "Verified (Deliverable)"
+                "is_valid_format": True,
+                "mx_found": has_a,
+                "status": "Verified (Deliverable)" if has_a else "No Mail Server"
             }
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers, dns.exception.Timeout):
-        # Fallback: Check if domain has an A record that handles mail
-        try:
-            a_records = resolver.resolve(domain, 'A')
-            if a_records:
-                _MX_CACHE[domain] = (True, "A Record Fallback")
-                return {
-                    "email": email,
-                    "is_valid": True,
-                    "mx_found": True,
-                    "mx_host": "A Record Fallback",
-                    "status": "Verified (A-Record)"
-                }
         except Exception:
-            pass
-            
-    _MX_CACHE[domain] = (False, "None")
-    return {
-        "email": email,
-        "is_valid": True,
-        "mx_found": False,
-        "mx_host": "None",
-        "status": "No Mail Server (Undeliverable)"
-    }
-
-if __name__ == "__main__":
-    test1 = verify_email_deliverability("info@samedaytrainers.co.uk")
-    print("Test 1 (Valid):", test1)
-    test2 = verify_email_deliverability("fakeuser@fakeinvalidnonexistentdomain12345.com")
-    print("Test 2 (Invalid domain):", test2)
+            MX_CACHE[domain] = False
+            return {
+                "email": email,
+                "is_valid_format": True,
+                "mx_found": False,
+                "status": "Undeliverable Domain"
+            }

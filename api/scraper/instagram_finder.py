@@ -1,97 +1,97 @@
 import re
 import urllib.parse
 from typing import List, Dict, Set
-from ddgs import DDGS
+from duckduckgo_search import DDGS
+from scraper.store_finder import clean_url_to_root
 
-# Excluded Instagram utility paths
 EXCLUDED_IG_HANDLES = {
-    "explore", "p", "reel", "reels", "stories", "direct", "accounts", 
-    "directory", "developer", "about", "legal", "terms", "privacy", "help"
+    "explore", "p", "reel", "stories", "direct", "accounts", "legal", "about"
 }
 
-def clean_ig_handle(url: str) -> str:
-    """Extracts username from Instagram profile URL."""
-    parsed = urllib.parse.urlparse(url)
-    parts = parsed.path.strip("/").split("/")
-    if parts and parts[0]:
-        handle = parts[0].lower()
-        if handle not in EXCLUDED_IG_HANDLES and not handle.startswith("tag"):
-            return handle
-    return ""
+def clean_instagram_handle(url_or_handle: str) -> str:
+    """Extracts @username from instagram URL or raw handle."""
+    if not url_or_handle:
+        return ""
+    m = re.search(r"instagram\.com/([a-zA-Z0-9_.]+)", url_or_handle)
+    if m:
+        handle = m.group(1).strip("/").lower()
+        if handle not in EXCLUDED_IG_HANDLES:
+            return f"@{handle}"
+    if url_or_handle.startswith("@"):
+        return url_or_handle
+    return f"@{url_or_handle.strip('/')}"
 
-def extract_website_from_bio_snippet(snippet: str) -> str:
-    """Extracts store website URL or domain mentioned in Instagram bio text."""
-    # Find domain mentions like brand.co.uk or https://brand.com
-    url_match = re.search(r'https?://[^\s,;"\'<>]+', snippet)
-    if url_match:
-        return url_match.group(0).rstrip(".,;")
-        
-    domain_match = re.search(r'\b([a-zA-Z0-9-]+\.(?:com|co\.uk|co|us|io|store|shop|online|eu|com\.au))\b', snippet, re.IGNORECASE)
-    if domain_match:
-        domain = domain_match.group(1).lower()
-        if not any(excluded in domain for excluded in ["instagram.com", "facebook.com", "linktr.ee", "tiktok.com"]):
-            return f"https://{domain}"
-            
-    return ""
-
-def find_instagram_brands(niche: str, region: str = "UK", max_results: int = 15) -> List[Dict]:
+def find_instagram_brands(niche: str, region: str = "UK", limit: int = 20) -> List[Dict[str, str]]:
     """
-    Discovers live D2C e-commerce brands on Instagram with bio text and linked store URLs.
+    Finds direct-to-consumer Instagram brand profiles for a given niche and region,
+    extracting their store website and Instagram handle.
     """
-    discovered_brands: List[Dict] = []
-    seen_handles: Set[str] = set()
-    
+    region_term = "" if region.lower() in ["global", "world"] else region
     queries = [
-        f'site:instagram.com "{niche}" ("shop now" OR "free delivery" OR "link in bio") "{region}"',
-        f'site:instagram.com "{niche}" ("clothing brand" OR "footwear" OR "organic") "{region}" "shop"',
-        f'site:instagram.com "{niche}" ("worldwide shipping" OR "store") "{region}"'
+        f'site:instagram.com "{niche}" "link in bio" {region_term}',
+        f'site:instagram.com "{niche}" "shop online" {region_term}',
+        f'site:instagram.com "{niche}" "official store" {region_term}',
+        f'site:instagram.com "{niche}" brand UK London' if region == "UK" else f'site:instagram.com "{niche}" brand USA New York'
     ]
     
-    ddgs = DDGS()
+    leads: List[Dict[str, str]] = []
+    seen_handles: Set[str] = set()
+    seen_urls: Set[str] = set()
     
-    for query in queries:
-        if len(discovered_brands) >= max_results:
+    for q in queries:
+        if len(leads) >= limit:
             break
         try:
-            results = ddgs.text(query, max_results=max_results * 2)
-            if results:
+            with DDGS() as ddgs:
+                results = list(ddgs.text(q, max_results=min(40, limit * 2)))
                 for r in results:
-                    url = r.get("href", "")
+                    href = r.get("href", "")
                     title = r.get("title", "")
                     body = r.get("body", "")
                     
-                    if "instagram.com/" in url:
-                        handle = clean_ig_handle(url)
-                        if handle and handle not in seen_handles:
-                            seen_handles.add(handle)
+                    # Extract Instagram Handle
+                    handle_match = re.search(r"instagram\.com/([a-zA-Z0-9_.]+)", href)
+                    if not handle_match:
+                        continue
+                    handle = handle_match.group(1).strip("/").lower()
+                    if handle in EXCLUDED_IG_HANDLES or handle in seen_handles:
+                        continue
+                    seen_handles.add(handle)
+                    
+                    # Extract external store link from title or snippet if present
+                    store_url = ""
+                    url_in_body = re.search(r"(https?://[^\s]+)", body)
+                    if url_in_body:
+                        candidate = clean_url_to_root(url_in_body.group(1))
+                        if candidate and "instagram.com" not in candidate:
+                            store_url = candidate
                             
-                            # Clean Brand Name from Instagram Title: "Brand Name (@handle) • Instagram photos"
-                            raw_name = title.split("(@")[0].split("•")[0].replace("on Instagram", "").strip()
-                            brand_name = raw_name if raw_name and len(raw_name) < 40 else handle.capitalize()
-                            
-                            # Extract Store URL
-                            store_url = extract_website_from_bio_snippet(body)
-                            if not store_url:
-                                store_url = f"https://{handle}.com"
-                                
-                            brand_entry = {
-                                "brand_name": brand_name,
-                                "instagram_url": f"https://www.instagram.com/{handle}/",
-                                "instagram_handle": f"@{handle}",
-                                "store_url": store_url,
-                                "bio_snippet": body,
-                                "region": region,
-                                "source": "Instagram D2C Discovery"
-                            }
-                            discovered_brands.append(brand_entry)
-                            
-                            if len(discovered_brands) >= max_results:
-                                break
+                    # Fallback URL estimation if not directly in bio snippet
+                    if not store_url:
+                        store_url = f"https://{handle}.com"
+                        
+                    if store_url in seen_urls:
+                        continue
+                    seen_urls.add(store_url)
+                    
+                    # Clean Brand Name from Instagram Title
+                    brand_name = title.split("•")[0].split("(@")[0].split("-")[0].replace("Instagram", "").strip()
+                    if not brand_name:
+                        brand_name = handle.replace("_", " ").replace(".", " ").title()
+                        
+                    leads.append({
+                        "url": store_url,
+                        "brand_name": brand_name,
+                        "instagram": f"https://www.instagram.com/{handle}",
+                        "instagram_handle": f"@{handle}",
+                        "niche": niche,
+                        "region": region,
+                        "source": "Instagram"
+                    })
+                    
+                    if len(leads) >= limit:
+                        break
         except Exception as e:
-            print(f"[InstagramFinder] Query note for '{query}': {e}")
+            print(f"Instagram brand search error: {e}")
             
-    return discovered_brands[:max_results]
-
-if __name__ == "__main__":
-    brands = find_instagram_brands("streetwear apparel", "UK", max_results=3)
-    print("Discovered IG Brands:", brands)
+    return leads

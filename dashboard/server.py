@@ -21,7 +21,7 @@ from agent.pitch_generator import generate_personalized_pitches
 from agent.email_sender import send_outreach_email
 from exporter.excel_exporter import export_leads_to_files
 
-app = FastAPI(title="AI E-Commerce Lead Gen & Outreach Dashboard")
+app = FastAPI(title="Talha Yousaf | AI E-Commerce Lead Gen & Outreach Agent")
 router = APIRouter()
 
 # Mount static files safely if directory exists
@@ -31,13 +31,8 @@ if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     except Exception:
         pass
-elif (BASE_DIR / "public" / "static").exists():
-    try:
-        app.mount("/static", StaticFiles(directory=str(BASE_DIR / "public" / "static")), name="static")
-    except Exception:
-        pass
 
-# Thread lock for thread-safe status updates
+# Thread lock for status updates
 status_lock = threading.Lock()
 
 agent_status = {
@@ -65,13 +60,16 @@ def save_leads_to_csv(leads: List[Dict]):
     """Overwrites leads_latest.csv and leads_latest.xlsx with updated lead list."""
     if not leads:
         return
-    df = pd.DataFrame(leads)
-    latest_csv = OUTPUT_DIR / "leads_latest.csv"
-    latest_excel = OUTPUT_DIR / "leads_latest.xlsx"
-    df.to_csv(latest_csv, index=False, encoding="utf-8-sig")
     try:
-        with pd.ExcelWriter(latest_excel, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="Leads")
+        df = pd.DataFrame(leads)
+        latest_csv = OUTPUT_DIR / "leads_latest.csv"
+        latest_excel = OUTPUT_DIR / "leads_latest.xlsx"
+        df.to_csv(latest_csv, index=False, encoding="utf-8-sig")
+        try:
+            with pd.ExcelWriter(latest_excel, engine="openpyxl") as writer:
+                df.to_excel(writer, index=False, sheet_name="Qualified Leads")
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -116,11 +114,10 @@ def get_stats():
 class SearchRequest(BaseModel):
     niche: str
     region: str = "UK"
-    count: int = 10
-    source: str = "web"  # "web" or "instagram"
+    count: int = 20
+    source: str = "web"
 
 def process_single_store_worker(store_info: Dict, region: str) -> Optional[Dict]:
-    """Worker function for concurrent thread pool execution of a single store."""
     url = store_info.get("url")
     if not url:
         return None
@@ -130,10 +127,7 @@ def process_single_store_worker(store_info: Dict, region: str) -> Optional[Dict]
     known_brand = store_info.get("brand_name", "")
     
     try:
-        # 1. Audit store
         audit = audit_store_frontend(url)
-        
-        # 2. Enrich contacts
         contacts = enrich_store_contacts(url, region=region)
         if known_ig and not contacts.get("instagram"):
             contacts["instagram"] = known_ig
@@ -142,8 +136,6 @@ def process_single_store_worker(store_info: Dict, region: str) -> Optional[Dict]
             contacts["brand_name"] = known_brand
             
         brand = contacts.get("brand_name", "") or known_brand or url
-        
-        # 3. Email MX Deliverability Verification
         primary_email = contacts.get("email", "")
         if primary_email:
             verify_res = verify_email_deliverability(primary_email)
@@ -153,7 +145,6 @@ def process_single_store_worker(store_info: Dict, region: str) -> Optional[Dict]
             contacts["email_deliverability"] = "No Email"
             contacts["is_deliverable"] = False
 
-        # 4. AI Pitch Generator
         pitches = generate_personalized_pitches(
             brand_name=brand,
             store_url=url,
@@ -174,14 +165,13 @@ def process_single_store_worker(store_info: Dict, region: str) -> Optional[Dict]
         return None
 
 def execute_lead_generation(niche: str, region: str, count: int, source: str = "web") -> List[Dict]:
-    """Executes lead generation pipeline with multi-threading."""
     global agent_status
     with status_lock:
         agent_status["is_running"] = True
         agent_status["progress"] = 0
         agent_status["total"] = count
         agent_status["current_step"] = f"Discovering stores ({source.upper()})..."
-        agent_status["logs"] = [f"🚀 Agent started: Finding {count} stores for '{niche}' in {region}..."]
+        agent_status["logs"] = [f"🚀 Agent started: Finding up to {count} stores for '{niche}' in {region}..."]
 
     try:
         if source == "instagram":
@@ -192,8 +182,8 @@ def execute_lead_generation(niche: str, region: str, count: int, source: str = "
         total_discovered = len(raw_stores)
         with status_lock:
             agent_status["total"] = total_discovered
-            agent_status["current_step"] = f"Auditing {total_discovered} stores in parallel..."
-            agent_status["logs"].append(f"⚡ Discovered {total_discovered} stores. Starting multi-threaded audit & pitch generation...")
+            agent_status["current_step"] = f"Auditing {total_discovered} stores in parallel (8 threads)..."
+            agent_status["logs"].append(f"⚡ Discovered {total_discovered} stores. Starting multi-threaded technical audit & pitch generation...")
 
         new_leads = []
         max_workers = min(8, max(1, total_discovered))
@@ -217,20 +207,21 @@ def execute_lead_generation(niche: str, region: str, count: int, source: str = "
                     has_email = bool(lead_data["contacts"].get("email"))
                     email_tag = f"📧 {lead_data['contacts']['email']} [{lead_data['contacts'].get('email_deliverability', '')}]" if has_email else "⚠️ No Email"
                     ig_tag = f"📷 {lead_data['contacts'].get('instagram_handle')}" if lead_data["contacts"].get("instagram_handle") else ""
+                    founder_tag = f"👤 {lead_data['contacts'].get('founder_name')}" if lead_data["contacts"].get("founder_name") else ""
                     
                     with status_lock:
                         agent_status["logs"].append(
-                            f"[{completed_count}/{total_discovered}] ✅ {brand} | {email_tag} {ig_tag}"
+                            f"[{completed_count}/{total_discovered}] ✅ {brand} | {email_tag} {founder_tag} {ig_tag}"
                         )
 
         if new_leads:
             with status_lock:
-                agent_status["current_step"] = "Exporting leads..."
+                agent_status["current_step"] = "Exporting qualified leads..."
             prefix = f"{source}_{niche.replace(' ', '_')}_{region}"
             export_leads_to_files(new_leads, filename_prefix=prefix)
             
             with status_lock:
-                agent_status["logs"].append(f"🎉 Successfully exported {len(new_leads)} enriched leads to spreadsheet!")
+                agent_status["logs"].append(f"🎉 Successfully enriched and saved {len(new_leads)} qualified leads!")
                 
         return new_leads
 
@@ -247,9 +238,9 @@ def execute_lead_generation(niche: str, region: str, count: int, source: str = "
 def trigger_search(req: SearchRequest, background_tasks: BackgroundTasks):
     global agent_status
     if agent_status["is_running"]:
-        raise HTTPException(status_code=400, detail="Agent is already running a task.")
+        raise HTTPException(status_code=400, detail="Agent is already running a discovery task.")
     
-    # In Vercel serverless environment, execute directly so response includes leads
+    # Serverless fallback for Vercel
     if os.environ.get("VERCEL"):
         leads = execute_lead_generation(req.niche, req.region, min(req.count, 15), req.source)
         exported = load_leads_from_csv()
@@ -259,11 +250,10 @@ def trigger_search(req: SearchRequest, background_tasks: BackgroundTasks):
             "leads": exported
         }
         
-    # Local or Render persistent environment: run asynchronously in background
     background_tasks.add_task(execute_lead_generation, req.niche, req.region, req.count, req.source)
     return {
         "status": "Started",
-        "message": f"Agent is discovering {req.count} leads ({req.source.upper()}) for '{req.niche}' in {req.region}"
+        "message": f"Agent started discovering {req.count} leads ({req.source.upper()}) for '{req.niche}' in {req.region}"
     }
 
 @router.get("/status")
@@ -277,7 +267,7 @@ class AuditSingleRequest(BaseModel):
 @router.post("/audit-single")
 def audit_single(req: AuditSingleRequest):
     url = req.url.strip()
-    # Strip any trailing punctuation (commas, periods, quotes, semicolons)
+    # Strip accidental trailing punctuation (commas, quotes, semicolons)
     url = re.sub(r"[,;.'\"\s]+$", "", url).strip()
     if not url.startswith("http"):
         url = "https://" + url
@@ -308,7 +298,6 @@ def audit_single(req: AuditSingleRequest):
             "pitches": pitches
         }
         
-        # Save to file safely
         res = export_leads_to_files([lead_data], filename_prefix="single_audit")
         return {"lead": lead_data, "export": res}
     except Exception as e:
@@ -339,7 +328,7 @@ def download_excel():
         return FileResponse(
             str(excel_file),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            filename="ecom_leads_export.xlsx"
+            filename="talha_ecom_leads.xlsx"
         )
     raise HTTPException(status_code=404, detail="No leads exported yet.")
 
@@ -350,7 +339,7 @@ def download_csv():
         return FileResponse(
             str(csv_file),
             media_type="text/csv",
-            filename="ecom_leads_export.csv"
+            filename="talha_ecom_leads.csv"
         )
     raise HTTPException(status_code=404, detail="No leads exported yet.")
 
@@ -368,7 +357,7 @@ def send_email_endpoint(req: SendEmailRequest):
     if not password:
         raise HTTPException(
             status_code=400, 
-            detail="Gmail App Password is not configured. Click 'Email Setup' in the header to enter your password."
+            detail="Gmail App Password is not configured. Click 'Email Setup' in the header to configure it."
         )
         
     result = send_outreach_email(
@@ -401,7 +390,6 @@ def save_smtp_settings(req: SMTPSettingsRequest):
     os.environ["SENDER_EMAIL"] = req.sender_email.strip()
     os.environ["GMAIL_APP_PASSWORD"] = req.app_password.strip()
     
-    # Save to .env in workspace for persistence if writable
     try:
         env_file = BASE_DIR / ".env"
         with open(env_file, "w") as f:
@@ -421,6 +409,5 @@ def get_smtp_settings():
         "is_configured": has_pwd
     }
 
-# Register router for both /api/* and root /* (for absolute Vercel and proxy compatibility)
 app.include_router(router, prefix="/api")
 app.include_router(router, prefix="")

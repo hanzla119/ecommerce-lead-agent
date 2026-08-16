@@ -1,51 +1,34 @@
 #!/usr/bin/env bash
-# AI Lead Generation & Outreach System Startup Script
+# 1-Click Startup Script for AI E-Commerce Lead Agent
 
+echo "🚀 Starting AI E-Commerce Lead Agent Dashboard..."
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "$DIR"
 
-echo "=========================================================="
-echo "🚀 Starting AI E-Commerce Lead Gen & Outreach System..."
-echo "=========================================================="
+mkdir -p output
+
+# Kill any existing server on port 8000
+fuser -k 8000/tcp 2>/dev/null || true
 
 # Activate virtual environment
 if [ -d ".venv" ]; then
     source .venv/bin/activate
-else
-    echo "Creating virtual environment..."
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
 fi
 
-# Stop existing instances if running
-pkill -f "uvicorn dashboard.server:app" 2>/dev/null
-pkill -f "cloudflared tunnel" 2>/dev/null
-
-# Start Uvicorn Server in Background
+# Launch persistent Uvicorn server in background
 nohup uvicorn dashboard.server:app --host 0.0.0.0 --port 8000 > output/server.log 2>&1 &
 SERVER_PID=$!
-echo "✅ Server started (PID: $SERVER_PID) on http://localhost:8000"
+echo "✅ Server started on http://127.0.0.1:8000 (PID: $SERVER_PID)"
 
-# Start Cloudflare Tunnel in Background
+# Launch Cloudflare Tunnel if available
 if [ -f ".venv/bin/cloudflared" ]; then
+    echo "⚡ Launching Cloudflare HTTPS public tunnel..."
     nohup .venv/bin/cloudflared tunnel --url http://127.0.0.1:8000 > output/tunnel.log 2>&1 &
-    TUNNEL_PID=$!
-    echo "✅ Cloudflare public tunnel started (PID: $TUNNEL_PID)"
-    sleep 4
-    TUNNEL_URL=$(grep -o "https://[a-zA-Z0-9.-]*\.trycloudflare\.com" output/tunnel.log | head -n 1)
-    if [ ! -z "$TUNNEL_URL" ]; then
-        echo ""
-        echo "🌍 PUBLIC WORLDWIDE LINK:"
-        echo "👉 $TUNNEL_URL"
-        echo ""
+    sleep 3
+    TUNNEL_URL=$(grep -o 'https://[-a-z0-9.]*trycloudflare.com' output/tunnel.log | head -n 1)
+    if [ -n "$TUNNEL_URL" ]; then
+        echo "🌍 Live Public URL: $TUNNEL_URL"
     fi
 fi
 
-echo "----------------------------------------------------------"
-echo "🌐 Local Link:     http://localhost:8000"
-echo "📱 Local Wi-Fi:    http://$(hostname -I | awk '{print $1}'):8000"
-echo "----------------------------------------------------------"
-echo "💡 The system is now running in the background!"
-echo "   To stop it anytime, run: ./stop.sh"
-echo "=========================================================="
+echo "🎉 Dashboard is live! Visit http://localhost:8000 or your public tunnel."

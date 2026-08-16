@@ -1,139 +1,77 @@
 import re
 import urllib.parse
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, List, Optional
 import requests
 from bs4 import BeautifulSoup
-from ddgs import DDGS
+from duckduckgo_search import DDGS
 
-EMAIL_REGEX = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
-
-# Common email domains/placeholders to filter out
-DISALLOWED_EMAIL_DOMAINS = {
-    "shopify.com", "myshopify.com", "example.com", "domain.com", 
-    "sentry.io", "wixpress.com", "google.com", "facebook.com", "schema.org", "w3.org"
+# Excluded generic email patterns
+EXCLUDED_EMAILS = {
+    "support@shopify.com", "info@shopify.com", "contact@shopify.com",
+    "example@domain.com", "email@example.com", "your@email.com",
+    "name@domain.com", "user@domain.com", "test@test.com", "press@shopify.com"
 }
 
-def extract_brand_name(soup: BeautifulSoup, base_url: str) -> str:
-    """Extracts clean brand name from OG tags, title, or domain."""
-    og_site = soup.find("meta", property="og:site_name")
-    if og_site and og_site.get("content"):
-        return og_site["content"].strip()
-        
-    title = soup.title.string if soup.title else ""
+def clean_brand_name(url: str, title: str = "", og_site_name: str = "") -> str:
+    """Extracts clean brand name from metadata or domain."""
+    if og_site_name and len(og_site_name.strip()) > 1:
+        return og_site_name.strip()
     if title:
-        clean_title = re.split(r'[|\-–—:]', title)[0].strip()
-        if clean_title and len(clean_title) < 35:
-            return clean_title
-            
-    parsed = urllib.parse.urlparse(base_url)
-    domain_part = parsed.netloc.replace("www.", "").split(".")[0]
-    return domain_part.capitalize()
+        parts = re.split(r"[|\-–—:]", title)
+        candidate = parts[0].strip()
+        if candidate and len(candidate) < 35 and "home" not in candidate.lower():
+            return candidate
+    parsed = urllib.parse.urlparse(url)
+    domain = parsed.netloc.replace("www.", "").split(".")[0]
+    return domain.capitalize()
 
-def find_emails_in_html(html_text: str) -> List[str]:
-    """Finds valid email addresses in text/html with strict validation."""
-    raw_emails = re.findall(EMAIL_REGEX, html_text)
-    valid_emails = []
-    
-    for email in raw_emails:
-        email = email.lower().strip(".,;:()\"' ")
-        if any(email.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".css", ".js", ".woff", ".ttf"]):
-            continue
-        if "@" not in email:
-            continue
-        domain = email.split("@")[-1]
-        if domain in DISALLOWED_EMAIL_DOMAINS or len(domain) < 4:
-            continue
-        if ".." in email or len(email) > 60:
-            continue
-        if email not in valid_emails:
-            valid_emails.append(email)
-            
-    return valid_emails
+def extract_emails_from_text(text: str) -> List[str]:
+    """Finds valid email addresses within HTML/text."""
+    if not text:
+        return []
+    email_pattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
+    found = re.findall(email_pattern, text)
+    valid = []
+    for e in found:
+        e = e.lower().strip(".")
+        if e not in EXCLUDED_EMAILS and not e.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
+            if e not in valid:
+                valid.append(e)
+    return valid
 
-def extract_social_links(soup: BeautifulSoup) -> Dict[str, str]:
-    """Finds and normalizes official Instagram, Facebook, TikTok, and LinkedIn links."""
-    socials = {
-        "instagram": "",
-        "instagram_handle": "",
-        "facebook": "",
-        "tiktok": "",
-        "tiktok_handle": "",
-        "linkedin_company": ""
-    }
-    
-    for a in soup.find_all("a", href=True):
-        href = a["href"].strip()
+def search_linkedin_founder(brand_name: str, domain: str, region: str = "UK") -> Dict[str, str]:
+    """Searches for the Founder, CEO, or Marketing Director on LinkedIn."""
+    if not brand_name or len(brand_name) < 2:
+        return {"founder_name": "", "founder_title": "", "founder_linkedin": ""}
         
-        # Instagram
-        if "instagram.com/" in href and not socials["instagram"]:
-            if not any(x in href.lower() for x in ["/p/", "/reel/", "/explore/", "/stories/", "sharer"]):
-                clean_ig = href.split("?")[0].rstrip("/")
-                parts = clean_ig.split("instagram.com/")
-                if len(parts) > 1 and parts[1]:
-                    handle = parts[1].strip("/")
-                    if handle.lower() not in ["shopify", "p", "explore"]:
-                        socials["instagram"] = clean_ig
-                        socials["instagram_handle"] = f"@{handle}"
-                        
-        # Facebook
-        elif "facebook.com/" in href and not socials["facebook"]:
-            if not any(x in href.lower() for x in ["/sharer", "/share", "/dialog", "tr?id="]):
-                socials["facebook"] = href.split("?")[0]
-                
-        # TikTok
-        elif "tiktok.com/" in href and not socials["tiktok"]:
-            clean_tt = href.split("?")[0].rstrip("/")
-            if "@" in clean_tt:
-                socials["tiktok"] = clean_tt
-                socials["tiktok_handle"] = "@" + clean_tt.split("@")[-1]
-                
-        # LinkedIn Company
-        elif "linkedin.com/company/" in href and not socials["linkedin_company"]:
-            socials["linkedin_company"] = href.split("?")[0]
-            
-    return socials
-
-def find_founder_linkedin(brand_name: str, region: str = "UK") -> Dict[str, str]:
-    """
-    Finds founder/decision-maker's LinkedIn profile via free Google/DuckDuckGo X-Ray search.
-    """
-    if not brand_name or len(brand_name) < 2 or brand_name.lower().startswith("http"):
-        return {"founder_name": "", "founder_title": "", "linkedin_url": "", "snippet": ""}
-        
-    query = f'site:linkedin.com/in ("Founder" OR "Owner" OR "CEO" OR "Co-Founder" OR "Managing Director") "{brand_name}"'
-    
-    ddgs = DDGS()
+    query = f'site:linkedin.com/in/ "{brand_name}" (founder OR ceo OR "co-founder" OR owner OR "managing director")'
     try:
-        results = ddgs.text(query, max_results=3)
-        if results:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=3))
             for r in results:
-                url = r.get("href", "")
+                href = r.get("href", "")
                 title = r.get("title", "")
-                snippet = r.get("body", "")
-                
-                if "linkedin.com/in/" in url:
+                if "linkedin.com/in/" in href:
                     # Clean title: "John Doe - Founder & CEO - Brand | LinkedIn"
-                    name_parts = re.split(r'[-–—|]', title)
-                    founder_name = name_parts[0].strip() if name_parts else ""
-                    founder_title = name_parts[1].strip() if len(name_parts) > 1 else "Founder / Owner"
-                    
-                    # Remove "LinkedIn" from name if present
-                    founder_name = founder_name.replace("LinkedIn", "").strip()
-                    
-                    return {
-                        "founder_name": founder_name,
-                        "founder_title": founder_title,
-                        "linkedin_url": url,
-                        "snippet": snippet
-                    }
+                    clean_title = re.sub(r"\|.*LinkedIn.*$", "", title).strip()
+                    parts = re.split(r"[-–—]", clean_title)
+                    name = parts[0].strip() if len(parts) > 0 else ""
+                    role = parts[1].strip() if len(parts) > 1 else "Founder / Decision Maker"
+                    if name and len(name.split()) <= 4:
+                        return {
+                            "founder_name": name,
+                            "founder_title": f"{role} at {brand_name}",
+                            "founder_linkedin": href
+                        }
     except Exception:
         pass
         
-    return {"founder_name": "", "founder_title": "", "linkedin_url": "", "snippet": ""}
+    return {"founder_name": "", "founder_title": "", "founder_linkedin": ""}
 
-def enrich_store_contacts(store_url: str, region: str = "UK") -> Dict:
+def enrich_store_contacts(url: str, region: str = "UK") -> Dict[str, any]:
     """
-    Crawls store homepage + contact subpages to extract emails, Instagram, TikTok, Facebook, and founder LinkedIn.
+    Crawls the store website for contact info, social links, brand name,
+    and searches LinkedIn for decision-makers.
     """
     contacts = {
         "brand_name": "",
@@ -147,76 +85,104 @@ def enrich_store_contacts(store_url: str, region: str = "UK") -> Dict:
         "linkedin_company": "",
         "founder_name": "",
         "founder_title": "",
-        "founder_linkedin": ""
+        "founder_linkedin": "",
+        "phone": ""
     }
     
+    if not url.startswith("http"):
+        url = "https://" + url
+        
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     }
     
-    html_corpus = ""
-    soup = None
+    pages_to_crawl = [
+        url,
+        f"{url.rstrip('/')}/pages/contact",
+        f"{url.rstrip('/')}/pages/contact-us",
+        f"{url.rstrip('/')}/pages/about",
+        f"{url.rstrip('/')}/pages/about-us",
+        f"{url.rstrip('/')}/policies/terms-of-service",
+        f"{url.rstrip('/')}/policies/privacy-policy"
+    ]
     
-    # 1. Fetch Homepage
-    try:
-        res = requests.get(store_url, headers=headers, timeout=10)
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, "html.parser")
-            html_corpus += " " + res.text
-            contacts["brand_name"] = extract_brand_name(soup, store_url)
-            socials = extract_social_links(soup)
-            contacts.update(socials)
-            
-            # Check for mailto links on homepage
-            for a in soup.find_all("a", href=True):
-                if a["href"].startswith("mailto:"):
-                    raw_mail = a["href"].replace("mailto:", "").split("?")[0].strip()
-                    if raw_mail and "@" in raw_mail:
-                        contacts["email"] = raw_mail.lower()
-    except Exception as e:
-        print(f"[ContactEnricher] Homepage fetch warning for {store_url}: {e}")
-        return contacts
-
-    # 2. Check Subpages for Contact/Support Email
-    subpaths = ["/pages/contact", "/pages/contact-us", "/pages/about-us", "/pages/about", "/policies/privacy-policy", "/pages/get-in-touch"]
-    for path in subpaths:
+    found_emails = []
+    og_title = ""
+    og_site_name = ""
+    
+    for page_url in pages_to_crawl:
         try:
-            sub_url = urllib.parse.urljoin(store_url, path)
-            sub_res = requests.get(sub_url, headers=headers, timeout=6)
-            if sub_res.status_code == 200:
-                html_corpus += " " + sub_res.text
-                sub_soup = BeautifulSoup(sub_res.text, "html.parser")
+            res = requests.get(page_url, headers=headers, timeout=5, allow_redirects=True)
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, "html.parser")
                 
-                # Check mailto links on subpages
-                for a in sub_soup.find_all("a", href=True):
-                    if a["href"].startswith("mailto:"):
-                        raw_mail = a["href"].replace("mailto:", "").split("?")[0].strip()
-                        if raw_mail and "@" in raw_mail and not contacts["email"]:
-                            contacts["email"] = raw_mail.lower()
+                # Extract meta titles
+                if not og_site_name:
+                    meta_site = soup.find("meta", property="og:site_name")
+                    if meta_site and meta_site.get("content"):
+                        og_site_name = meta_site["content"]
+                        
+                if not og_title and soup.title:
+                    og_title = soup.title.string or ""
+                    
+                # Extract mailto links
+                for mailto in soup.select('a[href^="mailto:"]'):
+                    href_email = mailto["href"].replace("mailto:", "").split("?")[0].strip()
+                    if href_email:
+                        cleaned = extract_emails_from_text(href_email)
+                        for e in cleaned:
+                            if e not in found_emails:
+                                found_emails.append(e)
+                                
+                # Extract page text emails
+                text_emails = extract_emails_from_text(res.text)
+                for e in text_emails:
+                    if e not in found_emails:
+                        found_emails.append(e)
+                        
+                # Extract social links
+                for a in soup.find_all("a", href=True):
+                    href = a["href"]
+                    if "instagram.com/" in href and not contacts["instagram"]:
+                        if not any(x in href for x in ["/p/", "/reel/", "/stories/", "/explore/"]):
+                            contacts["instagram"] = href
+                            m = re.search(r"instagram\.com/([a-zA-Z0-9_.]+)", href)
+                            if m:
+                                contacts["instagram_handle"] = f"@{m.group(1).strip('/')}"
+                                
+                    elif "facebook.com/" in href and not contacts["facebook"]:
+                        if not any(x in href for x in ["/sharer", "/plugins", "/tr?"]):
+                            contacts["facebook"] = href
                             
-                sub_socials = extract_social_links(sub_soup)
-                for k, v in sub_socials.items():
-                    if v and not contacts[k]:
-                        contacts[k] = v
+                    elif "tiktok.com/" in href and not contacts["tiktok"]:
+                        contacts["tiktok"] = href
+                        m = re.search(r"tiktok\.com/@([a-zA-Z0-9_.]+)", href)
+                        if m:
+                            contacts["tiktok_handle"] = f"@{m.group(1).strip('/')}"
+                            
+                    elif "linkedin.com/company/" in href and not contacts["linkedin_company"]:
+                        contacts["linkedin_company"] = href
+                        
+                # Extract phone numbers
+                if not contacts["phone"]:
+                    tel_a = soup.find("a", href=re.compile(r"^tel:"))
+                    if tel_a:
+                        contacts["phone"] = tel_a["href"].replace("tel:", "").strip()
         except Exception:
             continue
-
-    # 3. Extract & prioritize primary email
-    all_emails = find_emails_in_html(html_corpus)
-    contacts["all_emails"] = all_emails
-    if all_emails and not contacts["email"]:
-        contacts["email"] = all_emails[0]
-        # Prefer business prefixes
-        for em in all_emails:
-            if any(prefix in em for prefix in ["hello@", "info@", "contact@", "support@", "team@", "sales@", "press@", "founder@"]):
-                contacts["email"] = em
-                break
-
-    # 4. Find Founder / Decision Maker LinkedIn
-    brand = contacts["brand_name"]
-    founder_info = find_founder_linkedin(brand, region=region)
-    contacts["founder_name"] = founder_info.get("founder_name", "")
-    contacts["founder_title"] = founder_info.get("founder_title", "")
-    contacts["founder_linkedin"] = founder_info.get("linkedin_url", "")
-
+            
+    # Brand Name Resolution
+    contacts["brand_name"] = clean_brand_name(url, og_title, og_site_name)
+    contacts["all_emails"] = found_emails
+    
+    # Select Primary Contact Email (prioritize hello@, info@, contact@, support@)
+    if found_emails:
+        priority_emails = [e for e in found_emails if any(e.startswith(p) for p in ["hello@", "info@", "contact@", "support@", "team@", "sales@"])]
+        contacts["email"] = priority_emails[0] if priority_emails else found_emails[0]
+        
+    # Search LinkedIn for Founder / CEO
+    parsed_netloc = urllib.parse.urlparse(url).netloc
+    founder_info = search_linkedin_founder(contacts["brand_name"], parsed_netloc, region=region)
+    contacts.update(founder_info)
+    
     return contacts

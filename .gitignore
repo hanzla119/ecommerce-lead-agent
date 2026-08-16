@@ -1,32 +1,29 @@
-# Environment Variables (Secrets & Passwords)
+# Environment and Credentials
 .env
-.env.*
-!.env.example
+*.env
+credentials.json
+token.json
 
-# Python Virtual Environments & Bytecode
-.venv/
-env/
-venv/
+# Python Artifacts
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
+.venv/
+env/
+venv/
+ENV/
 
-# Local logs & process files
-*.log
-output/*.log
-.cloudflared/
-
-# IDE & OS files
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-.agents/
-.gemini/
-
-# Output lead spreadsheets (optional: exclude if you don't want client leads on public GitHub)
+# Output and Data Exports
 output/*.csv
 output/*.xlsx
 !output/.gitkeep
+!output/leads_latest.csv
+!output/leads_latest.xlsx
+
+# Logs
+*.log
+output/*.log
+
+# OS Specific
+.DS_Store
+Thumbs.db
