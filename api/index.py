@@ -48,12 +48,17 @@ agent_status = {
 
 def load_leads_from_csv() -> List[Dict]:
     try:
-        latest_csv = OUTPUT_DIR / "leads_latest.csv"
-        if not latest_csv.exists():
-            return []
-        df = pd.read_csv(latest_csv, encoding="utf-8-sig")
-        df = df.fillna("")
-        return df.to_dict(orient="records")
+        paths = [
+            OUTPUT_DIR / "leads_latest.csv",
+            PROJECT_ROOT / "output" / "leads_latest.csv",
+            CURRENT_DIR / "output" / "leads_latest.csv"
+        ]
+        for p in paths:
+            if p.exists():
+                df = pd.read_csv(p, encoding="utf-8-sig")
+                df = df.fillna("")
+                return df.to_dict(orient="records")
+        return []
     except Exception as e:
         return []
 
@@ -321,24 +326,34 @@ def update_status(req: UpdateStatusRequest):
 
 @router.get("/download/excel")
 def download_excel():
-    excel_file = OUTPUT_DIR / "leads_latest.xlsx"
-    if excel_file.exists():
-        return FileResponse(
-            str(excel_file),
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            filename="talha_ecom_leads.xlsx"
-        )
+    paths = [
+        OUTPUT_DIR / "leads_latest.xlsx",
+        PROJECT_ROOT / "output" / "leads_latest.xlsx",
+        CURRENT_DIR / "output" / "leads_latest.xlsx"
+    ]
+    for p in paths:
+        if p.exists():
+            return FileResponse(
+                str(p),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                filename="talha_ecom_leads.xlsx"
+            )
     raise HTTPException(status_code=404, detail="No leads exported yet.")
 
 @router.get("/download/csv")
 def download_csv():
-    csv_file = OUTPUT_DIR / "leads_latest.csv"
-    if csv_file.exists():
-        return FileResponse(
-            str(csv_file),
-            media_type="text/csv",
-            filename="talha_ecom_leads.csv"
-        )
+    paths = [
+        OUTPUT_DIR / "leads_latest.csv",
+        PROJECT_ROOT / "output" / "leads_latest.csv",
+        CURRENT_DIR / "output" / "leads_latest.csv"
+    ]
+    for p in paths:
+        if p.exists():
+            return FileResponse(
+                str(p),
+                media_type="text/csv",
+                filename="talha_ecom_leads.csv"
+            )
     raise HTTPException(status_code=404, detail="No leads exported yet.")
 
 class SendEmailRequest(BaseModel):

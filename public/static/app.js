@@ -397,8 +397,19 @@ btnLaunchAgent.addEventListener("click", async () => {
     const data = await res.json();
     if (res.ok) {
       showToast(data.message || "Discovery agent started!", "fa-robot");
-      progressBox.classList.remove("hidden");
-      startPollingStatus();
+      if (data.leads && data.leads.length > 0) {
+        allLeads = data.leads;
+        renderLeads();
+        fetchStats();
+      }
+      if (data.status === "Started") {
+        progressBox.classList.remove("hidden");
+        startPollingStatus();
+      } else {
+        btnLaunchAgent.disabled = false;
+        btnLaunchAgent.innerHTML = `<i class="fa-solid fa-play"></i> Launch Agent`;
+        await fetchLeads();
+      }
     } else {
       showToast(data.detail || "Agent is busy", "fa-circle-xmark");
       btnLaunchAgent.disabled = false;

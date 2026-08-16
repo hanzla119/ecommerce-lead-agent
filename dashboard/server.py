@@ -44,14 +44,17 @@ agent_status = {
 }
 
 def load_leads_from_csv() -> List[Dict]:
-    """Reads latest leads from CSV or returns empty list."""
-    latest_csv = OUTPUT_DIR / "leads_latest.csv"
-    if not latest_csv.exists():
-        return []
     try:
-        df = pd.read_csv(latest_csv, encoding="utf-8-sig")
-        df = df.fillna("")
-        return df.to_dict(orient="records")
+        paths = [
+            OUTPUT_DIR / "leads_latest.csv",
+            BASE_DIR / "output" / "leads_latest.csv"
+        ]
+        for p in paths:
+            if p.exists():
+                df = pd.read_csv(p, encoding="utf-8-sig")
+                df = df.fillna("")
+                return df.to_dict(orient="records")
+        return []
     except Exception as e:
         print(f"Error reading CSV: {e}")
         return []
